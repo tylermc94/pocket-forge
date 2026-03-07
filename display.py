@@ -81,6 +81,22 @@ def draw_menu_full(title):
     display_image()
 
 
+def draw_slider_screen(title, value, unit):
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP), title, font=FONT_TITLE, fill=(255, 200, 0))
+    state.draw.text((MARGIN_LEFT, 60), f"{value}{unit}", font=FONT_BODY, fill=(255, 255, 255))
+
+    # Bar background and fill
+    BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM = MARGIN_LEFT, 95, 225, 115
+    state.draw.rectangle((BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM), fill=(50, 50, 50))
+    filled = int((BAR_RIGHT - BAR_LEFT) * value / 100)
+    if filled > 0:
+        state.draw.rectangle((BAR_LEFT, BAR_TOP, BAR_LEFT + filled, BAR_BOTTOM), fill=(0, 200, 100))
+
+    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click to confirm", font=FONT_SMALL, fill=(100, 100, 100))
+    display_image()
+
+
 def draw_party_screen(r, g, b):
     color = (int(r * 255), int(g * 255), int(b * 255))
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))

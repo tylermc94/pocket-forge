@@ -1,4 +1,5 @@
 import time
+import subprocess
 import state
 import display
 import hardware
@@ -27,6 +28,16 @@ def get_menu_title():
 def handle_menu_selection():
     # Handle OTA states first — before touching current_menu_items,
     # which still points to the Settings list during OTA confirmation flow
+    if state.current_state == state.AppState.VOLUME:
+        subprocess.run(['amixer', 'sset', 'Speaker',   f'{state.current_volume}%'], capture_output=True)
+        subprocess.run(['amixer', 'sset', 'Headphone', f'{state.current_volume}%'], capture_output=True)
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
+    if state.current_state == state.AppState.BRIGHTNESS:
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
     if state.current_state == state.AppState.OTA_CONFIRM:
         if state.menu_index == 0:  # Yes
             display.draw_ota_result("Applying update...", color=(200, 200, 200))
@@ -61,6 +72,20 @@ def handle_menu_selection():
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
         elif selected == "Software Update":
             ota.handle_ota()
+        elif selected == "Volume":
+            try:
+                result = subprocess.run(['amixer', 'sget', 'Speaker'], capture_output=True, text=True)
+                for part in result.stdout.split():
+                    if part.startswith('[') and part.endswith('%]'):
+                        state.current_volume = round(int(part[1:-2]) / 5) * 5
+                        break
+            except Exception:
+                pass
+            state.current_state = state.AppState.VOLUME
+            display.draw_slider_screen("Volume", state.current_volume, "%")
+        elif selected == "Brightness":
+            state.current_state = state.AppState.BRIGHTNESS
+            display.draw_slider_screen("Brightness", state.current_brightness, "%")
         else:
             hardware.set_trackball_color(255, 0, 255)
             time.sleep(0.15)

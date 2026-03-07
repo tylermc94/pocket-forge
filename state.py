@@ -11,6 +11,8 @@ class AppState:
     PARTY_MODE    = "party_mode"
     OTA_CONFIRM   = "ota_confirm"
     OTA_RESULT    = "ota_result"
+    VOLUME        = "volume"
+    BRIGHTNESS    = "brightness"
 
 
 # Canvas
@@ -37,6 +39,10 @@ click_start_time      = 0
 movement_during_click = 0
 MOVEMENT_THRESHOLD    = 3
 SCROLL_SENSITIVITY    = 5
+
+# Volume / brightness state
+current_volume     = 50
+current_brightness = 100
 
 # Party mode state
 party_active = False

@@ -53,7 +53,7 @@ def draw_main_screen():
         battery_str   = "Battery: --"
         battery_color = (100, 100, 100)
 
-    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "READY!",      font=FONT_TITLE, fill=(0, 255, 0))
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "READY",      font=FONT_TITLE, fill=(0, 255, 0))
     state.draw.text((MARGIN_LEFT, 50),         time_str,     font=FONT_BODY,  fill=(255, 255, 255))
     state.draw.text((MARGIN_LEFT, 75),         date_str,     font=FONT_BODY,  fill=(200, 200, 200))
     state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), battery_str, font=FONT_SMALL, fill=battery_color)

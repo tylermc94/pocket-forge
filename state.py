@@ -16,6 +16,7 @@ class AppState:
     BRIGHTNESS            = "brightness"
     TRACKBALL_SENSITIVITY = "trackball_sensitivity"
     SCREEN_TIMEOUT        = "screen_timeout"
+    DEV_OPTIONS           = "dev_options"
 
 
 # Canvas
@@ -30,7 +31,8 @@ scroll_accumulator = 0
 
 # Menu item lists
 main_menu_items     = ["Status", "Settings", "Games", "Power"]
-settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "Screen Timeout", "WiFi", "< Back"]
+settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "Screen Timeout", "WiFi", "Developer Options", "< Back"]
+dev_options_menu_items = ["Debug Mode: OFF", "< Back"]
 games_menu_items    = ["Party Mode", "Snake", "Pong", "Drawing", "< Back"]
 power_menu_items    = ["Sleep", "Reboot", "Shutdown", "< Back"]
 
@@ -72,6 +74,9 @@ drawing_dirty          = False
 drawing_dx_acc         = 0
 drawing_dy_acc         = 0
 drawing_exit_requested = False
+
+# Debug mode
+debug = False
 
 # OTA / About screen state
 ota_status         = None   # None | "up_to_date" | "update_available"

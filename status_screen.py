@@ -8,9 +8,11 @@ import display
 import menus
 import party
 import drawing
+import logger
 
 
 def _do_wake():
+    logger.debug_log("Waking: enabling WiFi, restarting battery thread")
     subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'auto'], capture_output=True)
     hardware.start_battery_thread()
     state.sleeping         = False
@@ -43,6 +45,7 @@ try:
             try:
                 up, down, left, right, switch, _ = hardware.trackball.read()
             except Exception as e:
+                logger.debug_log(f"Trackball read error: {e}")
                 up = down = left = right = switch = 0
                 button_was_down = False
                 state.scroll_accumulator = 0
@@ -91,18 +94,18 @@ try:
                     button_was_down             = True
                     state.click_start_time      = time.time()
                     state.movement_during_click = 0
-                    print(f"[DEBUG] Button pressed, state={state.current_state}")
+                    logger.debug_log(f"Button pressed, state={state.current_state}")
 
                 elif not switch and button_was_down:
                     button_was_down = False
                     click_duration  = time.time() - state.click_start_time
-                    print(f"[DEBUG] Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
+                    logger.debug_log(f"Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
 
                     if (click_duration < 0.5 and
                             state.movement_during_click < state.MOVEMENT_THRESHOLD and
                             time.time() - state.last_click_time > 0.3):
 
-                        print(f"[DEBUG] Valid click registered, state={state.current_state}")
+                        logger.debug_log(f"Valid click registered, state={state.current_state}")
                         state.last_click_time = time.time()
 
                         if state.current_state == state.AppState.DRAWING:
@@ -127,7 +130,7 @@ try:
                         else:
                             menus.handle_menu_selection()
                     else:
-                        print(f"[DEBUG] Click rejected")
+                        logger.debug_log("Click rejected")
 
                 if button_was_down:
                     state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
@@ -193,7 +196,7 @@ try:
                             else:
                                 state.menu_index = (state.menu_index - 1) % item_count
 
-                            print(f"[DEBUG] Scroll, state={state.current_state}, menu_index={state.menu_index}")
+                            logger.debug_log(f"Scroll, state={state.current_state}, menu_index={state.menu_index}")
 
                             display.draw_menu_full(menus.get_menu_title())
                             state.scroll_accumulator = 0

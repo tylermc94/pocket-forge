@@ -63,6 +63,9 @@ def draw_main_screen():
     hint_color = (100, 100, 100) if hardware.trackball_available else (150, 50, 50)
     state.draw.text((MARGIN_LEFT, 230), hint, font=FONT_SMALL, fill=hint_color)
 
+    if state.debug:
+        state.draw.text((205, MARGIN_TOP), "DBG", font=FONT_SMALL, fill=(255, 80, 0))
+
     display_image()
 
 

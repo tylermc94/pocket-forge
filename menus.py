@@ -7,6 +7,7 @@ import ota
 import party
 import drawing
 import settings
+import logger
 
 
 def enter_submenu(new_state, items, title):
@@ -23,12 +24,13 @@ def get_menu_title():
         state.AppState.SETTINGS_MENU: "Settings",
         state.AppState.GAMES_MENU:    "Games",
         state.AppState.POWER_MENU:    "Power",
+        state.AppState.DEV_OPTIONS:   "Developer Options",
     }
     return titles.get(state.current_state, "Menu")
 
 
 def handle_menu_selection():
-    print(f"[DEBUG] handle_menu_selection called, state={state.current_state}, menu_index={state.menu_index}")
+    logger.debug_log(f"handle_menu_selection called, state={state.current_state}, menu_index={state.menu_index}")
 
     if state.current_state == state.AppState.VOLUME:
         subprocess.run(['amixer', 'sset', 'Speaker',   f'{state.current_volume}%'], capture_output=True)
@@ -54,13 +56,13 @@ def handle_menu_selection():
 
     if state.current_state == state.AppState.ABOUT:
         if state.ota_status == "update_available":
-            print("[DEBUG] Applying update from About screen")
+            logger.debug_log("Applying update from About screen")
             ota.apply_update()
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
     selected = state.current_menu_items[state.menu_index]
-    print(f"[DEBUG] Selected item: {selected}")
+    logger.debug_log(f"Selected item: {selected}")
 
     if state.current_state == state.AppState.MAIN_MENU:
         if selected == "Status":
@@ -103,7 +105,12 @@ def handle_menu_selection():
             state.current_state = state.AppState.SCREEN_TIMEOUT
             pct = int((state.screen_timeout - 15) / (300 - 15) * 100)
             display.draw_slider_screen("Screen Timeout", pct, "", f"{state.screen_timeout}s")
+        elif selected == "Developer Options":
+            # Refresh label to reflect current debug state before entering
+            state.dev_options_menu_items[0] = "Debug Mode: ON" if state.debug else "Debug Mode: OFF"
+            enter_submenu(state.AppState.DEV_OPTIONS, state.dev_options_menu_items, "Developer Options")
         else:
+            # WiFi and any other unimplemented items
             hardware.set_trackball_color(255, 0, 255)
             time.sleep(0.15)
             hardware.set_trackball_color(0, 0, 0)
@@ -126,11 +133,13 @@ def handle_menu_selection():
         if selected == "< Back":
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
         elif selected == "Sleep":
+            logger.debug_log("Entering sleep")
             state.current_state = state.AppState.MAIN
             display.draw_sleeping_screen()
             time.sleep(1)
             hardware.board.set_backlight(0)
             subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'off'], capture_output=True)
+            logger.debug_log("Sleep: WiFi disabled, stopping battery thread")
             hardware.stop_battery_thread()
             state.sleeping  = True
             state.screen_on = False
@@ -138,3 +147,18 @@ def handle_menu_selection():
             subprocess.run(['sudo', 'reboot'])
         elif selected == "Shutdown":
             subprocess.run(['sudo', 'shutdown', '-h', 'now'])
+
+    elif state.current_state == state.AppState.DEV_OPTIONS:
+        if selected == "< Back":
+            enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        elif selected.startswith("Debug Mode"):
+            state.debug = not state.debug
+            state.dev_options_menu_items[0] = "Debug Mode: ON" if state.debug else "Debug Mode: OFF"
+            settings.save_settings()
+            # Flash green LED to confirm when enabling
+            if state.debug:
+                hardware.set_trackball_color(0, 255, 0)
+                time.sleep(0.2)
+                hardware.set_trackball_color(0, 0, 0)
+            logger.debug_log(f"Debug mode set to {state.debug}")
+            display.draw_menu_full("Developer Options")

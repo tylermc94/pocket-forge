@@ -8,6 +8,7 @@ DEFAULTS = {
     "brightness":    100,
     "sensitivity":     5,
     "screen_timeout": 60,
+    "debug":         False,
 }
 
 
@@ -18,7 +19,11 @@ def load_settings():
         # Merge: only accept known keys, fall back to defaults for missing/invalid ones
         result = dict(DEFAULTS)
         for k in DEFAULTS:
-            if k in data and isinstance(data[k], (int, float)):
+            if k not in data:
+                continue
+            if k == "debug":
+                result[k] = bool(data[k])
+            elif isinstance(data[k], (int, float)):
                 result[k] = int(data[k])
         return result
     except Exception:
@@ -32,6 +37,7 @@ def save_settings():
         "brightness":     state.current_brightness,
         "sensitivity":    state.current_sensitivity,
         "screen_timeout": state.screen_timeout,
+        "debug":          state.debug,
     }
     try:
         os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)

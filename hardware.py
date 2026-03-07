@@ -5,6 +5,7 @@ import threading
 import time
 
 import state
+import logger
 
 sys.path.append(os.path.expanduser("~/Whisplay/Driver"))
 from WhisPlay import WhisPlayBoard
@@ -33,6 +34,7 @@ state.current_brightness  = _s["brightness"]
 state.current_sensitivity = _s["sensitivity"]
 state.SCROLL_SENSITIVITY  = 11 - state.current_sensitivity
 state.screen_timeout      = _s["screen_timeout"]
+state.debug               = _s["debug"]
 board.set_backlight(state.current_brightness)
 
 print("Hardware initialized")
@@ -59,6 +61,7 @@ def _make_battery_poll_fn(stop_event):
                     val = int(float(output.split(":")[-1].strip()))
                     with state._battery_lock:
                         state._battery_level = val
+                    logger.debug_log(f"Battery poll: {val}%")
             except Exception:
                 pass
             stop_event.wait(30)

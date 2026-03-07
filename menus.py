@@ -47,6 +47,7 @@ def handle_menu_selection():
         if state.ota_status == "update_available":
             print("[DEBUG] Applying update from About screen")
             ota.apply_update()
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
     selected = state.current_menu_items[state.menu_index]

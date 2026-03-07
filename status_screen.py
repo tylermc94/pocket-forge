@@ -21,10 +21,10 @@ try:
             try:
                 up, down, left, right, switch, _ = hardware.trackball.read()
             except Exception as e:
-                print(f"Trackball read error: {e}")
                 up = down = left = right = switch = 0
                 button_was_down = False
                 state.scroll_accumulator = 0
+                time.sleep(0.05)  # Brief backoff, let I2C bus recover
 
             # Button press tracking
             if switch and not button_was_down:

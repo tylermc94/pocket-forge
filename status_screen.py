@@ -26,22 +26,24 @@ try:
 
             # Button press tracking
             if switch and not button_was_down:
-                button_was_down           = True
-                state.click_start_time    = time.time()
+                button_was_down             = True
+                state.click_start_time      = time.time()
                 state.movement_during_click = 0
+                print(f"[DEBUG] Button pressed, state={state.current_state}")
 
             elif not switch and button_was_down:
                 button_was_down = False
                 click_duration  = time.time() - state.click_start_time
+                print(f"[DEBUG] Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
 
                 if (click_duration < 0.5 and
                         state.movement_during_click < state.MOVEMENT_THRESHOLD and
                         time.time() - state.last_click_time > 0.3):
 
+                    print(f"[DEBUG] Valid click registered, state={state.current_state}")
                     state.last_click_time = time.time()
 
                     if state.current_state == state.AppState.PARTY_MODE:
-                        # Stop thread first, then redraw menu
                         party.stop_party_mode()
                         menus.enter_submenu(state.AppState.GAMES_MENU, state.games_menu_items, "Games")
 
@@ -54,6 +56,8 @@ try:
 
                     else:
                         menus.handle_menu_selection()
+                else:
+                    print(f"[DEBUG] Click rejected")
 
             if button_was_down:
                 state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
@@ -68,7 +72,7 @@ try:
                 elif state.current_state in (state.AppState.VOLUME, state.AppState.BRIGHTNESS):
                     state.scroll_accumulator += net_movement
                     if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
-                        delta = 5 if state.scroll_accumulator < 0 else -5  # scroll up = increase
+                        delta = 5 if state.scroll_accumulator < 0 else -5
                         if state.current_state == state.AppState.VOLUME:
                             new_val = max(0, min(100, state.current_volume + delta))
                             if new_val != state.current_volume:
@@ -91,6 +95,8 @@ try:
                             state.menu_index = (state.menu_index + 1) % item_count
                         else:
                             state.menu_index = (state.menu_index - 1) % item_count
+
+                        print(f"[DEBUG] Scroll, state={state.current_state}, menu_index={state.menu_index}")
 
                         if state.current_state == state.AppState.OTA_CONFIRM:
                             display.draw_ota_confirm()

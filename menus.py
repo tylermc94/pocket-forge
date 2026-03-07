@@ -26,8 +26,8 @@ def get_menu_title():
 
 
 def handle_menu_selection():
-    # Handle OTA states first — before touching current_menu_items,
-    # which still points to the Settings list during OTA confirmation flow
+    print(f"[DEBUG] handle_menu_selection called, state={state.current_state}, menu_index={state.menu_index}")
+
     if state.current_state == state.AppState.VOLUME:
         subprocess.run(['amixer', 'sset', 'Speaker',   f'{state.current_volume}%'], capture_output=True)
         subprocess.run(['amixer', 'sset', 'Headphone', f'{state.current_volume}%'], capture_output=True)
@@ -39,13 +39,16 @@ def handle_menu_selection():
         return
 
     if state.current_state == state.AppState.OTA_CONFIRM:
+        print(f"[DEBUG] OTA_CONFIRM branch hit, menu_index={state.menu_index}")
         if state.menu_index == 0:  # Yes
+            print("[DEBUG] Applying update (Yes selected)")
             display.draw_ota_result("Applying update...", color=(200, 200, 200))
             success, message = ota.apply_update()
             if not success:
                 state.current_state = state.AppState.OTA_RESULT
                 display.draw_ota_result(message, color=(255, 100, 100))
         else:  # No
+            print("[DEBUG] Cancelled update (No selected)")
             enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
@@ -54,7 +57,7 @@ def handle_menu_selection():
         return
 
     selected = state.current_menu_items[state.menu_index]
-    print(f"Selected: {selected}")
+    print(f"[DEBUG] Selected item: {selected}")
 
     if state.current_state == state.AppState.MAIN_MENU:
         if selected == "Status":

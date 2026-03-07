@@ -38,6 +38,10 @@ def handle_menu_selection():
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
+    if state.current_state == state.AppState.TRACKBALL_SENSITIVITY:
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
     if state.current_state == state.AppState.OTA_CONFIRM:
         print(f"[DEBUG] OTA_CONFIRM branch hit, menu_index={state.menu_index}")
         if state.menu_index == 0:  # Yes
@@ -89,6 +93,9 @@ def handle_menu_selection():
         elif selected == "Brightness":
             state.current_state = state.AppState.BRIGHTNESS
             display.draw_slider_screen("Brightness", state.current_brightness, "%")
+        elif selected == "Trackball Sensitivity":
+            state.current_state = state.AppState.TRACKBALL_SENSITIVITY
+            display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
         else:
             hardware.set_trackball_color(255, 0, 255)
             time.sleep(0.15)

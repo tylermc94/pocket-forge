@@ -11,8 +11,9 @@ class AppState:
     PARTY_MODE    = "party_mode"
     OTA_CONFIRM   = "ota_confirm"
     OTA_RESULT    = "ota_result"
-    VOLUME        = "volume"
-    BRIGHTNESS    = "brightness"
+    VOLUME                = "volume"
+    BRIGHTNESS            = "brightness"
+    TRACKBALL_SENSITIVITY = "trackball_sensitivity"
 
 
 # Canvas
@@ -27,7 +28,7 @@ scroll_accumulator = 0
 
 # Menu item lists
 main_menu_items     = ["Status", "Settings", "Games", "Power"]
-settings_menu_items = ["Software Update", "Volume", "Brightness", "WiFi", "< Back"]
+settings_menu_items = ["Software Update", "Volume", "Brightness", "Trackball Sensitivity", "WiFi", "< Back"]
 games_menu_items    = ["Party Mode", "Snake", "Pong", "Drawing", "< Back"]
 power_menu_items    = ["Sleep", "Reboot", "Shutdown", "< Back"]
 
@@ -40,9 +41,10 @@ movement_during_click = 0
 MOVEMENT_THRESHOLD    = 3
 SCROLL_SENSITIVITY    = 5
 
-# Volume / brightness state
-current_volume     = 50
-current_brightness = 100
+# Volume / brightness / sensitivity state
+current_volume       = 50
+current_brightness   = 100
+current_sensitivity  = 5   # Range 1-10; SCROLL_SENSITIVITY = 11 - current_sensitivity
 
 # Party mode state
 party_active = False

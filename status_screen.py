@@ -71,21 +71,30 @@ try:
                     with state.party_lock:
                         state.party_speed = max(10, min(100, state.party_speed + (2 if net_movement > 0 else -2)))
 
-                elif state.current_state in (state.AppState.VOLUME, state.AppState.BRIGHTNESS):
+                elif state.current_state in (state.AppState.VOLUME, state.AppState.BRIGHTNESS, state.AppState.TRACKBALL_SENSITIVITY):
                     state.scroll_accumulator += net_movement
                     if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
-                        delta = 5 if state.scroll_accumulator < 0 else -5
+                        # scroll up (accumulator < 0) → value increases; scroll down → value decreases
                         if state.current_state == state.AppState.VOLUME:
+                            delta = 5 if state.scroll_accumulator < 0 else -5
                             new_val = max(0, min(100, state.current_volume + delta))
                             if new_val != state.current_volume:
                                 state.current_volume = new_val
                                 display.draw_slider_screen("Volume", state.current_volume, "%")
-                        else:
+                        elif state.current_state == state.AppState.BRIGHTNESS:
+                            delta = 5 if state.scroll_accumulator < 0 else -5
                             new_val = max(10, min(100, state.current_brightness + delta))
                             if new_val != state.current_brightness:
                                 state.current_brightness = new_val
                                 hardware.board.set_backlight(state.current_brightness)
                                 display.draw_slider_screen("Brightness", state.current_brightness, "%")
+                        else:  # TRACKBALL_SENSITIVITY
+                            delta = 1 if state.scroll_accumulator < 0 else -1
+                            new_val = max(1, min(10, state.current_sensitivity + delta))
+                            if new_val != state.current_sensitivity:
+                                state.current_sensitivity = new_val
+                                state.SCROLL_SENSITIVITY = 11 - state.current_sensitivity
+                                display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
                         state.scroll_accumulator = 0
 
                 elif state.current_state not in (state.AppState.MAIN, state.AppState.OTA_RESULT):

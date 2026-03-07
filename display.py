@@ -84,14 +84,19 @@ def draw_menu_full(title):
 def draw_slider_screen(title, value, unit):
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
     state.draw.text((MARGIN_LEFT, MARGIN_TOP), title, font=FONT_TITLE, fill=(255, 200, 0))
-    state.draw.text((MARGIN_LEFT, 60), f"{value}{unit}", font=FONT_BODY, fill=(255, 255, 255))
+    state.draw.text((MARGIN_LEFT, 55), f"{value}{unit}", font=FONT_BODY, fill=(255, 255, 255))
 
-    # Bar background and fill
-    BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM = MARGIN_LEFT, 95, 225, 115
+    # Vertical bar — fills from bottom (low) to top (high)
+    BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM = 95, 85, 145, 240
     state.draw.rectangle((BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM), fill=(50, 50, 50))
-    filled = int((BAR_RIGHT - BAR_LEFT) * value / 100)
+    bar_height = BAR_BOTTOM - BAR_TOP
+    filled = int(bar_height * value / 100)
     if filled > 0:
-        state.draw.rectangle((BAR_LEFT, BAR_TOP, BAR_LEFT + filled, BAR_BOTTOM), fill=(0, 200, 100))
+        state.draw.rectangle((BAR_LEFT, BAR_BOTTOM - filled, BAR_RIGHT, BAR_BOTTOM), fill=(0, 200, 100))
+
+    # Min / max labels
+    state.draw.text((BAR_RIGHT + 8, BAR_TOP),        "MAX", font=FONT_SMALL, fill=(150, 150, 150))
+    state.draw.text((BAR_RIGHT + 8, BAR_BOTTOM - 14), "MIN", font=FONT_SMALL, fill=(150, 150, 150))
 
     state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click to confirm", font=FONT_SMALL, fill=(100, 100, 100))
     display_image()

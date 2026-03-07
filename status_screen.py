@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import time
+import subprocess
 
 import state
 import hardware
@@ -9,7 +10,21 @@ import party
 import drawing
 
 
+def _do_wake():
+    subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'auto'], capture_output=True)
+    hardware.start_battery_thread()
+    state.sleeping         = False
+    state.screen_on        = True
+    state.last_activity_time = time.time()
+    state.current_state    = state.AppState.MAIN
+    hardware.board.set_backlight(state.current_brightness)
+    display.draw_main_screen()
+
+
 def _on_hat_button():
+    if state.sleeping:
+        _do_wake()
+        return
     if state.current_state == state.AppState.DRAWING:
         drawing.stop_drawing()
     else:
@@ -34,6 +49,12 @@ try:
                 time.sleep(0.05)  # Brief backoff, let I2C bus recover
 
             any_input = bool(switch or up or down or left or right)
+
+            if state.sleeping:
+                if any_input:
+                    _do_wake()
+                time.sleep(0.008)
+                continue
 
             if not state.screen_on:
                 # Screen is off — wake on any input, consume all of it

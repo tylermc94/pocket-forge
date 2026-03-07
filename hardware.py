@@ -46,22 +46,40 @@ def set_trackball_color(r, g, b, w=0):
             pass
 
 
-def _battery_poll_thread():
-    while True:
-        try:
-            result = subprocess.run(
-                ['bash', '-c', 'echo "get battery" | nc -q 0 127.0.0.1 8423'],
-                capture_output=True, text=True, timeout=2
-            )
-            output = result.stdout.strip()
-            if "battery:" in output:
-                val = int(float(output.split(":")[-1].strip()))
-                with state._battery_lock:
-                    state._battery_level = val
-        except Exception:
-            pass
-        time.sleep(30)
+def _make_battery_poll_fn(stop_event):
+    def _run():
+        while not stop_event.is_set():
+            try:
+                result = subprocess.run(
+                    ['bash', '-c', 'echo "get battery" | nc -q 0 127.0.0.1 8423'],
+                    capture_output=True, text=True, timeout=2
+                )
+                output = result.stdout.strip()
+                if "battery:" in output:
+                    val = int(float(output.split(":")[-1].strip()))
+                    with state._battery_lock:
+                        state._battery_level = val
+            except Exception:
+                pass
+            stop_event.wait(30)
+    return _run
 
 
-_battery_thread = threading.Thread(target=_battery_poll_thread, daemon=True)
+_battery_stop_event = threading.Event()
+_battery_thread     = threading.Thread(target=_make_battery_poll_fn(_battery_stop_event), daemon=True)
 _battery_thread.start()
+
+
+def stop_battery_thread():
+    global _battery_thread
+    _battery_stop_event.set()
+    if _battery_thread and _battery_thread.is_alive():
+        _battery_thread.join(timeout=3)
+    _battery_thread = None
+
+
+def start_battery_thread():
+    global _battery_thread, _battery_stop_event
+    _battery_stop_event = threading.Event()
+    _battery_thread = threading.Thread(target=_make_battery_poll_fn(_battery_stop_event), daemon=True)
+    _battery_thread.start()

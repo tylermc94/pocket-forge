@@ -47,6 +47,7 @@ SCROLL_SENSITIVITY    = 5
 screen_on          = True
 screen_timeout     = 60      # seconds; overwritten by settings on startup
 last_activity_time = time.time()
+sleeping           = False
 
 # Volume / brightness / sensitivity state
 current_volume       = 50

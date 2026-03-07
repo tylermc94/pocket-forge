@@ -126,15 +126,15 @@ def handle_menu_selection():
         if selected == "< Back":
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
         elif selected == "Sleep":
-            state.screen_on = False
-            hardware.board.set_backlight(0)
+            state.current_state = state.AppState.MAIN
             display.draw_sleeping_screen()
             time.sleep(1)
-            subprocess.run(['sudo', 'systemctl', 'suspend'])
-            # After returning from suspend the service is still running;
-            # keep screen_on = False so the main loop recovers on next input.
+            hardware.board.set_backlight(0)
+            subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'off'], capture_output=True)
+            hardware.stop_battery_thread()
+            state.sleeping  = True
             state.screen_on = False
-        else:
-            hardware.set_trackball_color(255, 0, 0)
-            time.sleep(0.15)
-            hardware.set_trackball_color(0, 0, 0)
+        elif selected == "Reboot":
+            subprocess.run(['sudo', 'reboot'])
+        elif selected == "Shutdown":
+            subprocess.run(['sudo', 'shutdown', '-h', 'now'])

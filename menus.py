@@ -5,6 +5,7 @@ import display
 import hardware
 import ota
 import party
+import drawing
 
 
 def enter_submenu(new_state, items, title):
@@ -108,6 +109,8 @@ def handle_menu_selection():
             state.current_state = state.AppState.PARTY_MODE
             state.party_speed   = 30
             party.start_party_mode()
+        elif selected == "Drawing":
+            drawing.start_drawing()
         else:
             hardware.set_trackball_color(0, 0, 255)
             time.sleep(0.15)

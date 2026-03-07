@@ -14,6 +14,7 @@ class AppState:
     VOLUME                = "volume"
     BRIGHTNESS            = "brightness"
     TRACKBALL_SENSITIVITY = "trackball_sensitivity"
+    DRAWING               = "drawing"
 
 
 # Canvas
@@ -52,6 +53,18 @@ party_speed  = 30       # steps/sec, range 10-100
 party_hue    = 0.0
 party_lock   = threading.Lock()
 party_thread = None     # Keep reference so we can join it
+
+# Drawing game state
+drawing_canvas         = None   # PIL Image (the persistent drawing canvas)
+drawing_draw_ctx       = None   # PIL ImageDraw for drawing_canvas
+drawing_mode           = True   # True = draw mode, False = move mode
+drawing_hue            = 0.0    # Current HSV hue for rainbow color cycling
+drawing_cursor_x       = 120    # Cursor X position (0-239)
+drawing_cursor_y       = 140    # Cursor Y position (0-279)
+drawing_dirty          = False  # True when display needs to be refreshed
+drawing_dx_acc         = 0      # Horizontal trackball accumulator
+drawing_dy_acc         = 0      # Vertical trackball accumulator
+drawing_exit_requested = False  # Set by HAT button to signal exit
 
 # Battery state
 _battery_level = None

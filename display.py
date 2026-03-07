@@ -134,6 +134,46 @@ def draw_ota_confirm():
     display_image()
 
 
+def draw_drawing_screen():
+    """
+    Render the drawing canvas with a cursor overlay and mode indicator,
+    then push to the display.  The persistent canvas is kept in
+    state.drawing_canvas; only a composite copy is sent to the screen so
+    the cursor and UI chrome are never burned into the drawing itself.
+    """
+    if state.drawing_canvas is None:
+        return
+
+    from PIL import Image as _Image, ImageDraw as _ImageDraw
+
+    # Work on a copy so the canvas stays clean
+    composite  = state.drawing_canvas.copy()
+    comp_draw  = _ImageDraw.Draw(composite)
+
+    # --- Crosshair cursor (5 px arms, white with black halo) ---
+    cx, cy = state.drawing_cursor_x, state.drawing_cursor_y
+    hs = 5  # arm half-length
+
+    # Black 3-px-wide outline first so cursor is visible on any background
+    comp_draw.line([(cx - hs - 1, cy), (cx + hs + 1, cy)], fill=(0, 0, 0), width=3)
+    comp_draw.line([(cx, cy - hs - 1), (cx, cy + hs + 1)], fill=(0, 0, 0), width=3)
+    # White 1-px crosshair on top
+    comp_draw.line([(cx - hs, cy), (cx + hs, cy)], fill=(255, 255, 255), width=1)
+    comp_draw.line([(cx, cy - hs), (cx, cy + hs)], fill=(255, 255, 255), width=1)
+
+    # --- Mode indicator (top-left corner) ---
+    mode_text  = "Draw" if state.drawing_mode else "Move"
+    mode_color = (255, 255, 0) if state.drawing_mode else (0, 200, 255)
+    comp_draw.rectangle((2, 2, 48, 17), fill=(0, 0, 0))
+    comp_draw.text((4, 3), mode_text, font=FONT_SMALL, fill=mode_color)
+
+    # Push composite into state.img and send to hardware
+    state.img.paste(composite)
+    display_image()
+
+    state.drawing_dirty = False
+
+
 def draw_ota_result(message, color=(255, 255, 255), pause=0):
     """Draw OTA result screen. Pass pause > 0 to hold the screen briefly."""
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))

@@ -6,15 +6,25 @@ import hardware
 import display
 import menus
 import party
+import drawing
 
 
-hardware.board.on_button_press(lambda: print("Recording mode TODO"))
+def _on_hat_button():
+    """HAT button handler — exits Drawing mode; reserved for other states later."""
+    if state.current_state == state.AppState.DRAWING:
+        # Signal the main loop to exit drawing cleanly (display calls must stay
+        # on the main thread to avoid I2C contention).
+        state.drawing_exit_requested = True
+
+
+hardware.board.on_button_press(_on_hat_button)
 
 try:
     print("Starting main loop...")
     display.draw_main_screen()
-    last_second     = int(time.time())
-    button_was_down = False
+    last_second              = int(time.time())
+    button_was_down          = False
+    drawing_long_press_done  = False  # True once the 1-s clear fires in a single press
 
     while True:
         if hardware.trackball_available:
@@ -49,6 +59,13 @@ try:
                         party.stop_party_mode()
                         menus.enter_submenu(state.AppState.GAMES_MENU, state.games_menu_items, "Games")
 
+                    elif state.current_state == state.AppState.DRAWING:
+                        # Short click: toggle draw / move (only if long-press clear
+                        # didn't already fire during this press)
+                        if not drawing_long_press_done:
+                            drawing.toggle_mode()
+                            display.draw_drawing_screen()
+
                     elif state.current_state == state.AppState.MAIN:
                         state.current_state      = state.AppState.MAIN_MENU
                         state.current_menu_items = state.main_menu_items
@@ -61,8 +78,29 @@ try:
                 else:
                     print(f"[DEBUG] Click rejected")
 
+                # Reset long-press flag whenever button is released
+                drawing_long_press_done = False
+
             if button_was_down:
                 state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
+
+                # Long-press (≥1 s) in drawing mode clears the canvas once per press
+                if (state.current_state == state.AppState.DRAWING and
+                        not drawing_long_press_done and
+                        time.time() - state.click_start_time >= 1.0):
+                    drawing_long_press_done = True
+                    drawing.clear_canvas()
+                    display.draw_drawing_screen()
+                    print("[DEBUG] Drawing canvas cleared (long press)")
+
+            # Drawing mode: handle all four axes before the general scroll logic
+            if state.current_state == state.AppState.DRAWING:
+                net_h = right - left
+                net_v = down - up
+                if abs(net_h) > 0 or abs(net_v) > 0:
+                    drawing.handle_movement(net_h, net_v)
+                    if state.drawing_dirty:
+                        display.draw_drawing_screen()
 
             # Scroll handling
             net_movement = down - up
@@ -97,7 +135,11 @@ try:
                                 display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
                         state.scroll_accumulator = 0
 
-                elif state.current_state not in (state.AppState.MAIN, state.AppState.OTA_RESULT):
+                elif state.current_state not in (
+                    state.AppState.MAIN,
+                    state.AppState.OTA_RESULT,
+                    state.AppState.DRAWING,
+                ):
                     state.scroll_accumulator += net_movement
                     if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
                         item_count = 2 if state.current_state == state.AppState.OTA_CONFIRM else len(state.current_menu_items)
@@ -114,6 +156,14 @@ try:
                         else:
                             display.draw_menu_full(menus.get_menu_title())
                         state.scroll_accumulator = 0
+
+        # Drawing mode: HAT-button exit and deferred dirty redraws
+        if state.current_state == state.AppState.DRAWING:
+            if state.drawing_exit_requested:
+                state.drawing_exit_requested = False
+                drawing.stop_drawing()
+            elif state.drawing_dirty:
+                display.draw_drawing_screen()
 
         # Main screen clock update — only redraws when the second changes
         if state.current_state == state.AppState.MAIN:

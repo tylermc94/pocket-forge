@@ -6,9 +6,16 @@ import hardware
 import display
 import menus
 import party
+import drawing
 
 
-hardware.board.on_button_press(lambda: print("Recording mode TODO"))
+def _on_hat_button():
+    if state.current_state == state.AppState.DRAWING:
+        drawing.stop_drawing()
+    else:
+        print("Recording mode TODO")
+
+hardware.board.on_button_press(_on_hat_button)
 
 try:
     print("Starting main loop...")
@@ -45,7 +52,15 @@ try:
                     print(f"[DEBUG] Valid click registered, state={state.current_state}")
                     state.last_click_time = time.time()
 
-                    if state.current_state == state.AppState.PARTY_MODE:
+                    if state.current_state == state.AppState.DRAWING:
+                        if click_duration >= 1.0:
+                            drawing.clear_canvas()
+                            state.drawing_dirty = True
+                        else:
+                            drawing.toggle_mode()
+                            state.drawing_dirty = True
+
+                    elif state.current_state == state.AppState.PARTY_MODE:
                         party.stop_party_mode()
                         menus.enter_submenu(state.AppState.GAMES_MENU, state.games_menu_items, "Games")
 
@@ -63,6 +78,11 @@ try:
 
             if button_was_down:
                 state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
+
+            # Drawing game — trackball moves cursor and draws
+            if state.current_state == state.AppState.DRAWING:
+                if up or down or left or right:
+                    drawing.handle_movement(right - left, down - up)
 
             # Scroll handling
             net_movement = down - up
@@ -97,7 +117,7 @@ try:
                                 display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
                         state.scroll_accumulator = 0
 
-                elif state.current_state not in (state.AppState.MAIN, state.AppState.ABOUT):
+                elif state.current_state not in (state.AppState.MAIN, state.AppState.ABOUT, state.AppState.DRAWING):
                     state.scroll_accumulator += net_movement
                     if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
                         item_count = len(state.current_menu_items)
@@ -118,6 +138,11 @@ try:
             if current_second != last_second:
                 last_second = current_second
                 display.draw_main_screen()
+
+        # Drawing game — redraw when dirty
+        if state.current_state == state.AppState.DRAWING and state.drawing_dirty:
+            state.drawing_dirty = False
+            display.draw_drawing_screen()
 
         # About screen background update check
         if state.current_state == state.AppState.ABOUT and state.ota_status_changed:

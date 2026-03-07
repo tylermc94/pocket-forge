@@ -117,6 +117,23 @@ def draw_party_screen(r, g, b):
     display_image()
 
 
+def draw_drawing_screen():
+    """Composite the drawing canvas onto the display with a cursor and hint overlay."""
+    from PIL import Image as _Image
+    canvas = state.drawing_canvas if state.drawing_canvas is not None else _Image.new('RGB', (240, 280))
+    composite = canvas.copy()
+    from PIL import ImageDraw as _ImageDraw
+    overlay = _ImageDraw.Draw(composite)
+    x, y = state.drawing_cursor_x, state.drawing_cursor_y
+    cursor_color = (255, 255, 0) if state.drawing_mode else (200, 200, 200)
+    overlay.ellipse((x - 4, y - 4, x + 4, y + 4), outline=cursor_color)
+    mode_label = "DRAW" if state.drawing_mode else "MOVE"
+    overlay.text((MARGIN_LEFT, MARGIN_TOP), mode_label, font=FONT_SMALL, fill=cursor_color)
+    overlay.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click: toggle  Hold: clear", font=FONT_SMALL, fill=(80, 80, 80))
+    rotated = composite.rotate(180)
+    hardware.board.draw_image(0, 0, 240, 280, image_to_rgb565(rotated))
+
+
 _ABOUT_DIVIDER_Y = 218
 _ABOUT_STATUS_Y  = 236
 

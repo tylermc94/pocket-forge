@@ -9,6 +9,7 @@ class AppState:
     GAMES_MENU    = "games_menu"
     POWER_MENU    = "power_menu"
     PARTY_MODE    = "party_mode"
+    DRAWING       = "drawing"
     ABOUT                 = "about"
     VOLUME                = "volume"
     BRIGHTNESS            = "brightness"
@@ -51,6 +52,18 @@ party_speed  = 30       # steps/sec, range 10-100
 party_hue    = 0.0
 party_lock   = threading.Lock()
 party_thread = None     # Keep reference so we can join it
+
+# Drawing game state
+drawing_canvas         = None
+drawing_draw_ctx       = None
+drawing_mode           = True   # True = draw mode, False = move mode
+drawing_hue            = 0.0
+drawing_cursor_x       = 120
+drawing_cursor_y       = 140
+drawing_dirty          = False
+drawing_dx_acc         = 0
+drawing_dy_acc         = 0
+drawing_exit_requested = False
 
 # OTA / About screen state
 ota_status         = None   # None | "up_to_date" | "update_available"

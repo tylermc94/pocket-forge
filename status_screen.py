@@ -23,6 +23,8 @@ try:
             except Exception as e:
                 print(f"Trackball read error: {e}")
                 up = down = left = right = switch = 0
+                button_was_down = False
+                state.scroll_accumulator = 0
 
             # Button press tracking
             if switch and not button_was_down:

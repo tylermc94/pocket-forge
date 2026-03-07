@@ -97,10 +97,10 @@ try:
                                 display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
                         state.scroll_accumulator = 0
 
-                elif state.current_state not in (state.AppState.MAIN, state.AppState.OTA_RESULT):
+                elif state.current_state not in (state.AppState.MAIN, state.AppState.ABOUT):
                     state.scroll_accumulator += net_movement
                     if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
-                        item_count = 2 if state.current_state == state.AppState.OTA_CONFIRM else len(state.current_menu_items)
+                        item_count = len(state.current_menu_items)
 
                         if state.scroll_accumulator > 0:
                             state.menu_index = (state.menu_index + 1) % item_count
@@ -109,10 +109,7 @@ try:
 
                         print(f"[DEBUG] Scroll, state={state.current_state}, menu_index={state.menu_index}")
 
-                        if state.current_state == state.AppState.OTA_CONFIRM:
-                            display.draw_ota_confirm()
-                        else:
-                            display.draw_menu_full(menus.get_menu_title())
+                        display.draw_menu_full(menus.get_menu_title())
                         state.scroll_accumulator = 0
 
         # Main screen clock update — only redraws when the second changes
@@ -121,6 +118,11 @@ try:
             if current_second != last_second:
                 last_second = current_second
                 display.draw_main_screen()
+
+        # About screen background update check
+        if state.current_state == state.AppState.ABOUT and state.ota_status_changed:
+            state.ota_status_changed = False
+            display.draw_about_status()
 
         time.sleep(0.008)
 

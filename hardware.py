@@ -25,6 +25,16 @@ except Exception as e:
     trackball_available = False
     print(f"Trackball not found, continuing without it: {e}")
 
+# Load persisted settings and apply them
+import settings as _settings
+_s = _settings.load_settings()
+state.current_volume      = _s["volume"]
+state.current_brightness  = _s["brightness"]
+state.current_sensitivity = _s["sensitivity"]
+state.SCROLL_SENSITIVITY  = 11 - state.current_sensitivity
+state.screen_timeout      = _s["screen_timeout"]
+board.set_backlight(state.current_brightness)
+
 print("Hardware initialized")
 
 

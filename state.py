@@ -1,4 +1,5 @@
 import threading
+import time
 from PIL import Image, ImageDraw
 
 
@@ -14,6 +15,7 @@ class AppState:
     VOLUME                = "volume"
     BRIGHTNESS            = "brightness"
     TRACKBALL_SENSITIVITY = "trackball_sensitivity"
+    SCREEN_TIMEOUT        = "screen_timeout"
 
 
 # Canvas
@@ -28,7 +30,7 @@ scroll_accumulator = 0
 
 # Menu item lists
 main_menu_items     = ["Status", "Settings", "Games", "Power"]
-settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "WiFi", "< Back"]
+settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "Screen Timeout", "WiFi", "< Back"]
 games_menu_items    = ["Party Mode", "Snake", "Pong", "Drawing", "< Back"]
 power_menu_items    = ["Sleep", "Reboot", "Shutdown", "< Back"]
 
@@ -40,6 +42,11 @@ click_start_time      = 0
 movement_during_click = 0
 MOVEMENT_THRESHOLD    = 3
 SCROLL_SENSITIVITY    = 5
+
+# Screen state
+screen_on          = True
+screen_timeout     = 60      # seconds; overwritten by settings on startup
+last_activity_time = time.time()
 
 # Volume / brightness / sensitivity state
 current_volume       = 50

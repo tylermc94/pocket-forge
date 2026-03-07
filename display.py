@@ -82,10 +82,11 @@ def draw_menu_full(title):
     display_image()
 
 
-def draw_slider_screen(title, value, unit):
+def draw_slider_screen(title, value, unit, display_text=None):
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
     state.draw.text((MARGIN_LEFT, MARGIN_TOP), title, font=FONT_TITLE, fill=(255, 200, 0))
-    state.draw.text((MARGIN_LEFT, 55), f"{value}{unit}", font=FONT_BODY, fill=(255, 255, 255))
+    label = display_text if display_text is not None else f"{value}{unit}"
+    state.draw.text((MARGIN_LEFT, 55), label, font=FONT_BODY, fill=(255, 255, 255))
 
     # Vertical bar — fills from bottom (low) to top (high)
     BAR_LEFT, BAR_TOP, BAR_RIGHT, BAR_BOTTOM = 95, 85, 145, 240
@@ -100,6 +101,12 @@ def draw_slider_screen(title, value, unit):
     state.draw.text((BAR_RIGHT + 8, BAR_BOTTOM - 14), "MIN", font=FONT_SMALL, fill=(150, 150, 150))
 
     state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click to confirm", font=FONT_SMALL, fill=(100, 100, 100))
+    display_image()
+
+
+def draw_sleeping_screen():
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "Sleeping\u2026", font=FONT_TITLE, fill=(100, 100, 100))
     display_image()
 
 

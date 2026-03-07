@@ -6,6 +6,7 @@ import hardware
 import ota
 import party
 import drawing
+import settings
 
 
 def enter_submenu(new_state, items, title):
@@ -32,14 +33,22 @@ def handle_menu_selection():
     if state.current_state == state.AppState.VOLUME:
         subprocess.run(['amixer', 'sset', 'Speaker',   f'{state.current_volume}%'], capture_output=True)
         subprocess.run(['amixer', 'sset', 'Headphone', f'{state.current_volume}%'], capture_output=True)
+        settings.save_settings()
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
     if state.current_state == state.AppState.BRIGHTNESS:
+        settings.save_settings()
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
     if state.current_state == state.AppState.TRACKBALL_SENSITIVITY:
+        settings.save_settings()
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
+    if state.current_state == state.AppState.SCREEN_TIMEOUT:
+        settings.save_settings()
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
@@ -90,6 +99,10 @@ def handle_menu_selection():
         elif selected == "Trackball Sensitivity":
             state.current_state = state.AppState.TRACKBALL_SENSITIVITY
             display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
+        elif selected == "Screen Timeout":
+            state.current_state = state.AppState.SCREEN_TIMEOUT
+            pct = int((state.screen_timeout - 15) / (300 - 15) * 100)
+            display.draw_slider_screen("Screen Timeout", pct, "", f"{state.screen_timeout}s")
         else:
             hardware.set_trackball_color(255, 0, 255)
             time.sleep(0.15)
@@ -112,6 +125,15 @@ def handle_menu_selection():
     elif state.current_state == state.AppState.POWER_MENU:
         if selected == "< Back":
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
+        elif selected == "Sleep":
+            state.screen_on = False
+            hardware.board.set_backlight(0)
+            display.draw_sleeping_screen()
+            time.sleep(1)
+            subprocess.run(['sudo', 'systemctl', 'suspend'])
+            # After returning from suspend the service is still running;
+            # keep screen_on = False so the main loop recovers on next input.
+            state.screen_on = False
         else:
             hardware.set_trackball_color(255, 0, 0)
             time.sleep(0.15)

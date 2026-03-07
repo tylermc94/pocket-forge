@@ -1,5 +1,4 @@
 import time
-
 import state
 import display
 import hardware
@@ -26,6 +25,23 @@ def get_menu_title():
 
 
 def handle_menu_selection():
+    # Handle OTA states first — before touching current_menu_items,
+    # which still points to the Settings list during OTA confirmation flow
+    if state.current_state == state.AppState.OTA_CONFIRM:
+        if state.menu_index == 0:  # Yes
+            display.draw_ota_result("Applying update...", color=(200, 200, 200))
+            success, message = ota.apply_update()
+            if not success:
+                state.current_state = state.AppState.OTA_RESULT
+                display.draw_ota_result(message, color=(255, 100, 100))
+        else:  # No
+            enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
+    if state.current_state == state.AppState.OTA_RESULT:
+        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        return
+
     selected = state.current_menu_items[state.menu_index]
     print(f"Selected: {selected}")
 
@@ -69,16 +85,3 @@ def handle_menu_selection():
             hardware.set_trackball_color(255, 0, 0)
             time.sleep(0.15)
             hardware.set_trackball_color(0, 0, 0)
-
-    elif state.current_state == state.AppState.OTA_CONFIRM:
-        if state.menu_index == 0:  # Yes
-            display.draw_ota_result("Applying update...", color=(200, 200, 200))
-            success, message = ota.apply_update()
-            if not success:
-                state.current_state = state.AppState.OTA_RESULT
-                display.draw_ota_result(message, color=(255, 100, 100))
-        else:  # No
-            enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
-
-    elif state.current_state == state.AppState.OTA_RESULT:
-        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")

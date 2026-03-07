@@ -1,3 +1,4 @@
+import subprocess
 import time
 from datetime import datetime
 
@@ -116,86 +117,87 @@ def draw_party_screen(r, g, b):
     display_image()
 
 
-def draw_ota_confirm():
+_ABOUT_DIVIDER_Y = 218
+_ABOUT_STATUS_Y  = 236
+
+
+def _get_commit_info():
+    """Return (firmware_date, commit_msg) from the local git repo."""
+    repo = '/home/admin/pocket-forge'
+    try:
+        firmware_date = subprocess.run(
+            ['git', 'log', '-1', '--format=%cd', '--date=format:%b %d %Y'],
+            cwd=repo, capture_output=True, text=True
+        ).stdout.strip() or "Unknown"
+    except Exception:
+        firmware_date = "Unknown"
+
+    try:
+        msg = subprocess.run(
+            ['git', 'log', '-1', '--format=%s'],
+            cwd=repo, capture_output=True, text=True
+        ).stdout.strip() or ""
+        if len(msg) > 26:
+            msg = msg[:25] + "\u2026"
+    except Exception:
+        msg = ""
+
+    return firmware_date, msg
+
+
+def _draw_about_status_area():
+    """Repaint only the area below the divider. Does NOT call display_image()."""
+    state.draw.rectangle((0, _ABOUT_DIVIDER_Y + 1, 240, 280), fill=(0, 0, 0))
+
+    s = state.ota_status
+    if s is None:
+        state.draw.text(
+            (MARGIN_LEFT, _ABOUT_STATUS_Y), "Checking\u2026",
+            font=FONT_SMALL, fill=(130, 130, 130)
+        )
+    elif s == "up_to_date":
+        state.draw.text(
+            (MARGIN_LEFT, _ABOUT_STATUS_Y), "Up to date",
+            font=FONT_BODY, fill=(200, 200, 200)
+        )
+    else:  # update_available
+        state.draw.rectangle(
+            (MARGIN_LEFT - 5, _ABOUT_STATUS_Y - 2, 235, _ABOUT_STATUS_Y + 22),
+            fill=(50, 50, 100)
+        )
+        state.draw.text(
+            (MARGIN_LEFT, _ABOUT_STATUS_Y), "> Update available",
+            font=FONT_BODY, fill=(255, 255, 0)
+        )
+
+
+def draw_about_screen():
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
-    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "Software Update", font=FONT_TITLE, fill=(255, 200, 0))
-    state.draw.text((MARGIN_LEFT, 70),  "Update available!",      font=FONT_BODY,  fill=(255, 255, 255))
-    state.draw.text((MARGIN_LEFT, 100), "Apply update?",          font=FONT_BODY,  fill=(200, 200, 200))
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "About", font=FONT_TITLE, fill=(255, 200, 0))
 
-    if state.menu_index == 0:
-        state.draw.rectangle((MARGIN_LEFT - 5, 138, 120, 160), fill=(50, 50, 100))
-        state.draw.text((MARGIN_LEFT, 140), "> Yes", font=FONT_BODY, fill=(255, 255, 0))
-        state.draw.text((MARGIN_LEFT + 10, 172), "No", font=FONT_BODY, fill=(200, 200, 200))
-    else:
-        state.draw.text((MARGIN_LEFT + 10, 140), "Yes", font=FONT_BODY, fill=(200, 200, 200))
-        state.draw.rectangle((MARGIN_LEFT - 5, 170, 120, 192), fill=(50, 50, 100))
-        state.draw.text((MARGIN_LEFT, 172), "> No",  font=FONT_BODY, fill=(255, 255, 0))
+    firmware_date, commit_msg = _get_commit_info()
 
+    DIM  = (130, 130, 130)
+    LITE = (200, 200, 200)
+
+    state.draw.text((MARGIN_LEFT, 50),  "Device: Pocket Forge",       font=FONT_SMALL, fill=LITE)
+    state.draw.text((MARGIN_LEFT, 68),  "Hardware:",                   font=FONT_SMALL, fill=DIM)
+    state.draw.text((MARGIN_LEFT, 84),  "Pi Zero 2W / Whisplay HAT",  font=FONT_SMALL, fill=LITE)
+    state.draw.text((MARGIN_LEFT, 100), "/ PiSugar 3",                font=FONT_SMALL, fill=LITE)
+    state.draw.text((MARGIN_LEFT, 118), f"Firmware: {firmware_date}", font=FONT_SMALL, fill=LITE)
+    state.draw.text((MARGIN_LEFT, 136), "Last update:",               font=FONT_SMALL, fill=DIM)
+    state.draw.text((MARGIN_LEFT, 152), commit_msg,                   font=FONT_SMALL, fill=LITE)
+
+    state.draw.line(
+        (MARGIN_LEFT, _ABOUT_DIVIDER_Y, 225, _ABOUT_DIVIDER_Y),
+        fill=(60, 60, 60), width=1
+    )
+
+    _draw_about_status_area()
     display_image()
 
 
-def draw_drawing_screen():
-    """
-    Render the drawing canvas with a cursor overlay and mode indicator,
-    then push to the display.  The persistent canvas is kept in
-    state.drawing_canvas; only a composite copy is sent to the screen so
-    the cursor and UI chrome are never burned into the drawing itself.
-    """
-    if state.drawing_canvas is None:
-        return
-
-    from PIL import Image as _Image, ImageDraw as _ImageDraw
-
-    # Work on a copy so the canvas stays clean
-    composite  = state.drawing_canvas.copy()
-    comp_draw  = _ImageDraw.Draw(composite)
-
-    # --- Crosshair cursor (5 px arms, white with black halo) ---
-    cx, cy = state.drawing_cursor_x, state.drawing_cursor_y
-    hs = 5  # arm half-length
-
-    # Black 3-px-wide outline first so cursor is visible on any background
-    comp_draw.line([(cx - hs - 1, cy), (cx + hs + 1, cy)], fill=(0, 0, 0), width=3)
-    comp_draw.line([(cx, cy - hs - 1), (cx, cy + hs + 1)], fill=(0, 0, 0), width=3)
-    # White 1-px crosshair on top
-    comp_draw.line([(cx - hs, cy), (cx + hs, cy)], fill=(255, 255, 255), width=1)
-    comp_draw.line([(cx, cy - hs), (cx, cy + hs)], fill=(255, 255, 255), width=1)
-
-    # --- Mode indicator (top-left corner) ---
-    mode_text  = "Draw" if state.drawing_mode else "Move"
-    mode_color = (255, 255, 0) if state.drawing_mode else (0, 200, 255)
-    comp_draw.rectangle((2, 2, 48, 17), fill=(0, 0, 0))
-    comp_draw.text((4, 3), mode_text, font=FONT_SMALL, fill=mode_color)
-
-    # Push composite into state.img and send to hardware
-    state.img.paste(composite)
+def draw_about_status():
+    """Update only the status line on the About screen and refresh the display."""
+    _draw_about_status_area()
     display_image()
-
-    state.drawing_dirty = False
-
-
-def draw_ota_result(message, color=(255, 255, 255), pause=0):
-    """Draw OTA result screen. Pass pause > 0 to hold the screen briefly."""
-    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
-    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "Software Update", font=FONT_TITLE, fill=(255, 200, 0))
-
-    # Simple word wrap
-    words = message.split()
-    line  = ""
-    y     = 70
-    for word in words:
-        test = f"{line} {word}".strip()
-        if len(test) > 20:
-            state.draw.text((MARGIN_LEFT, y), line, font=FONT_BODY, fill=color)
-            y    += 28
-            line  = word
-        else:
-            line = test
-    if line:
-        state.draw.text((MARGIN_LEFT, y), line, font=FONT_BODY, fill=color)
-
-    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click to go back", font=FONT_SMALL, fill=(100, 100, 100))
-    display_image()
-
-    if pause > 0:
-        time.sleep(pause)

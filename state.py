@@ -9,12 +9,10 @@ class AppState:
     GAMES_MENU    = "games_menu"
     POWER_MENU    = "power_menu"
     PARTY_MODE    = "party_mode"
-    OTA_CONFIRM   = "ota_confirm"
-    OTA_RESULT    = "ota_result"
+    ABOUT                 = "about"
     VOLUME                = "volume"
     BRIGHTNESS            = "brightness"
     TRACKBALL_SENSITIVITY = "trackball_sensitivity"
-    DRAWING               = "drawing"
 
 
 # Canvas
@@ -29,7 +27,7 @@ scroll_accumulator = 0
 
 # Menu item lists
 main_menu_items     = ["Status", "Settings", "Games", "Power"]
-settings_menu_items = ["Software Update", "Volume", "Brightness", "Trackball Sensitivity", "WiFi", "< Back"]
+settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "WiFi", "< Back"]
 games_menu_items    = ["Party Mode", "Snake", "Pong", "Drawing", "< Back"]
 power_menu_items    = ["Sleep", "Reboot", "Shutdown", "< Back"]
 
@@ -54,17 +52,9 @@ party_hue    = 0.0
 party_lock   = threading.Lock()
 party_thread = None     # Keep reference so we can join it
 
-# Drawing game state
-drawing_canvas         = None   # PIL Image (the persistent drawing canvas)
-drawing_draw_ctx       = None   # PIL ImageDraw for drawing_canvas
-drawing_mode           = True   # True = draw mode, False = move mode
-drawing_hue            = 0.0    # Current HSV hue for rainbow color cycling
-drawing_cursor_x       = 120    # Cursor X position (0-239)
-drawing_cursor_y       = 140    # Cursor Y position (0-279)
-drawing_dirty          = False  # True when display needs to be refreshed
-drawing_dx_acc         = 0      # Horizontal trackball accumulator
-drawing_dy_acc         = 0      # Vertical trackball accumulator
-drawing_exit_requested = False  # Set by HAT button to signal exit
+# OTA / About screen state
+ota_status         = None   # None | "up_to_date" | "update_available"
+ota_status_changed = False  # Set True by background thread; cleared by main loop
 
 # Battery state
 _battery_level = None

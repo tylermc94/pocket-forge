@@ -43,22 +43,10 @@ def handle_menu_selection():
         enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         return
 
-    if state.current_state == state.AppState.OTA_CONFIRM:
-        print(f"[DEBUG] OTA_CONFIRM branch hit, menu_index={state.menu_index}")
-        if state.menu_index == 0:  # Yes
-            print("[DEBUG] Applying update (Yes selected)")
-            display.draw_ota_result("Applying update...", color=(200, 200, 200))
-            success, message = ota.apply_update()
-            if not success:
-                state.current_state = state.AppState.OTA_RESULT
-                display.draw_ota_result(message, color=(255, 100, 100))
-        else:  # No
-            print("[DEBUG] Cancelled update (No selected)")
-            enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
-        return
-
-    if state.current_state == state.AppState.OTA_RESULT:
-        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+    if state.current_state == state.AppState.ABOUT:
+        if state.ota_status == "update_available":
+            print("[DEBUG] Applying update from About screen")
+            ota.apply_update()
         return
 
     selected = state.current_menu_items[state.menu_index]
@@ -78,8 +66,12 @@ def handle_menu_selection():
     elif state.current_state == state.AppState.SETTINGS_MENU:
         if selected == "< Back":
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
-        elif selected == "Software Update":
-            ota.handle_ota()
+        elif selected == "About":
+            state.ota_status         = None
+            state.ota_status_changed = False
+            state.current_state      = state.AppState.ABOUT
+            display.draw_about_screen()
+            ota.fetch_update_status()
         elif selected == "Volume":
             try:
                 result = subprocess.run(['amixer', 'sget', 'Speaker'], capture_output=True, text=True)

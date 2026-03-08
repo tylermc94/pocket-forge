@@ -38,17 +38,16 @@ state.debug               = _s["debug"]
 board.set_backlight(state.current_brightness)
 
 # Detect whisper.cpp (C++ implementation — works on Pi Zero 2W)
-_WHISPER_CPP_BIN         = os.path.expanduser("~/whisper.cpp/build/bin/whisper-cli")
-_WHISPER_CPP_MODEL_ENQ   = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.en-q5_1.bin")
-_WHISPER_CPP_MODEL_EN    = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.en.bin")
-_WHISPER_CPP_MODEL       = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.bin")
+_WHISPER_CPP_BIN      = os.path.expanduser("~/whisper.cpp/build/bin/whisper-cli")
+_WHISPER_CPP_MODEL_EN = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.en.bin")
+_WHISPER_CPP_MODEL    = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.bin")
 
-# Prefer: quantized English-only > English-only > multilingual
+# Prefer English-only (faster, skips language detection)
+# Note: quantized models (q5_1) are slower on Cortex-A53 — don't use them
 _whisper_model_path = None
 _whisper_model_name = None
-for _path, _name in [(_WHISPER_CPP_MODEL_ENQ, "tiny.en-q5_1"),
-                      (_WHISPER_CPP_MODEL_EN,  "tiny.en"),
-                      (_WHISPER_CPP_MODEL,     "tiny")]:
+for _path, _name in [(_WHISPER_CPP_MODEL_EN, "tiny.en"),
+                      (_WHISPER_CPP_MODEL,    "tiny")]:
     if os.path.isfile(_path):
         _whisper_model_path = _path
         _whisper_model_name = _name

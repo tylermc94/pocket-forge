@@ -377,7 +377,7 @@ try:
                              '-m', state.whisper_cpp_model,
                              '-f', wav_path,
                              '--no-timestamps',
-                             '-t', '2']
+                             '-t', '4']
                     # English-only model doesn't need -l flag; set it for multilingual
                     if not state.whisper_model.endswith('.en'):
                         _wcmd += ['-l', 'en']

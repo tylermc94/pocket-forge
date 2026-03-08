@@ -2,29 +2,46 @@ import subprocess
 
 import state
 import display
+from logger import debug_log
+
+REPO_DIR = '/home/admin/pocket-forge'
 
 
 def check_for_update():
     """Returns True if update available, False if up to date, None on error."""
     try:
-        subprocess.run(
+        debug_log("OTA: starting git fetch")
+        fetch_result = subprocess.run(
             ['git', 'fetch'],
-            cwd='/home/admin/pocket-forge',
-            capture_output=True, timeout=15
+            cwd=REPO_DIR,
+            capture_output=True, text=True, timeout=15
         )
-        local = subprocess.run(
+        debug_log(f"OTA: git fetch returncode={fetch_result.returncode}, stderr={fetch_result.stderr.strip()}")
+
+        local_result = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
-            cwd='/home/admin/pocket-forge',
+            cwd=REPO_DIR,
             capture_output=True, text=True
-        ).stdout.strip()
-        remote = subprocess.run(
+        )
+        local = local_result.stdout.strip()
+        debug_log(f"OTA: local HEAD={local}")
+
+        remote_result = subprocess.run(
             ['git', 'rev-parse', 'origin/main'],
-            cwd='/home/admin/pocket-forge',
+            cwd=REPO_DIR,
             capture_output=True, text=True
-        ).stdout.strip()
-        return local != remote
+        )
+        remote = remote_result.stdout.strip()
+        debug_log(f"OTA: origin/main={remote}")
+
+        if local == remote:
+            debug_log("OTA: up to date")
+            return False
+        else:
+            debug_log(f"OTA: update available (local != remote)")
+            return True
     except Exception as e:
-        print(f"OTA check error: {e}")
+        debug_log(f"OTA check error: {e}")
         return None
 
 
@@ -33,7 +50,7 @@ def apply_update():
     try:
         result = subprocess.run(
             ['git', 'pull'],
-            cwd='/home/admin/pocket-forge',
+            cwd=REPO_DIR,
             capture_output=True, text=True, timeout=30
         )
         if result.returncode != 0:
@@ -45,8 +62,8 @@ def apply_update():
 
 
 def handle_ota():
+    """Called from Settings > Software Update (legacy entry point)."""
     display.draw_ota_result("Checking for updates...", color=(200, 200, 200))
-
     has_update = check_for_update()
 
     if has_update is None:
@@ -59,3 +76,12 @@ def handle_ota():
         state.current_state = state.AppState.OTA_CONFIRM
         state.menu_index    = 0
         display.draw_ota_confirm()
+
+
+def handle_about():
+    """Entry point for About screen — checks for update and draws About screen."""
+    display.draw_about_checking()
+    has_update = check_for_update()
+    state.current_state   = state.AppState.ABOUT
+    state.about_has_update = has_update
+    display.draw_about_screen(has_update)

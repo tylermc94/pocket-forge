@@ -37,6 +37,16 @@ state.screen_timeout      = _s["screen_timeout"]
 state.debug               = _s["debug"]
 board.set_backlight(state.current_brightness)
 
+# Load Whisper STT model (tiny — smallest/fastest)
+_whisper_start = time.time()
+try:
+    import whisper as _whisper
+    state.whisper_model = _whisper.load_model("tiny")
+    print(f"Whisper tiny loaded in {time.time() - _whisper_start:.1f}s")
+except Exception as e:
+    state.whisper_model = None
+    print(f"Whisper failed to load: {e}")
+
 print("Hardware initialized")
 
 

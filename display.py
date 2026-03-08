@@ -261,6 +261,63 @@ def draw_power_confirm(action):
     display_image()
 
 
+def draw_recording_screen(phase):
+    """Show 'Recording...' with pulsing red indicator."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "Recording...", font=FONT_TITLE, fill=(255, 255, 255))
+    # Pulsing red circle — alternates size each 0.5s
+    cx, cy = 200, 130
+    r = 10 if phase else 6
+    state.draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 0, 0))
+    display_image()
+
+
+def draw_transcribing_screen():
+    """Show 'Transcribing...' centered."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "Transcribing...", font=FONT_TITLE, fill=(255, 255, 255))
+    display_image()
+
+
+def draw_transcript_screen(text):
+    """Show transcribed text, word-wrapped to 240px width, centered vertically."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+
+    max_width = 240 - 2 * MARGIN_LEFT
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        test_line = f"{current_line} {word}".strip()
+        if FONT_BODY.getlength(test_line) <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+    if current_line:
+        lines.append(current_line)
+    if not lines:
+        lines = ["(empty)"]
+
+    line_height = 22
+    total_height = len(lines) * line_height
+    start_y = max(MARGIN_TOP, (280 - total_height) // 2)
+
+    for i, line in enumerate(lines):
+        state.draw.text((MARGIN_LEFT, start_y + i * line_height), line,
+                        font=FONT_BODY, fill=(255, 255, 255))
+    display_image()
+
+
+def draw_stt_unavailable_screen():
+    """Show 'STT unavailable' briefly."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "STT unavailable", font=FONT_TITLE, fill=(255, 80, 80))
+    display_image()
+
+
 def draw_about_screen():
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
     state.draw.text((MARGIN_LEFT, MARGIN_TOP), "About", font=FONT_TITLE, fill=(255, 200, 0))

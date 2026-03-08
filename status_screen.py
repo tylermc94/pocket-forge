@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import time
 import subprocess
+from datetime import datetime
+
+import numpy as np
 
 import state
 import hardware
@@ -10,6 +13,13 @@ import party
 import drawing
 import snake
 import logger
+import queries
+
+try:
+    import sounddevice as sd
+except ImportError:
+    sd = None
+    print("sounddevice not installed — recording unavailable")
 
 
 def _do_wake():
@@ -27,15 +37,63 @@ def _do_wake():
 def _on_hat_button():
     if state.sleeping:
         _do_wake()
+        state.hat_button_held = True   # Absorb press; release will clear
+        state.hat_button_press_time = 0  # Don't start recording after wake
         return
-    if state.current_state == state.AppState.DRAWING:
-        drawing.stop_drawing()
-    elif state.current_state == state.AppState.SNAKE:
-        snake.stop_snake()
+
+    if not state.screen_on:
+        state.screen_on = True
+        state.last_activity_time = time.time()
+        hardware.board.set_backlight(state.current_brightness)
+
+    if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
+        return
+
+    if not state.hat_button_held:
+        # Press edge
+        state.hat_button_held = True
+        state.hat_button_press_time = time.time()
     else:
-        print("Recording mode TODO")
+        # Release edge
+        state.hat_button_held = False
 
 hardware.board.on_button_press(_on_hat_button)
+
+# Recording runtime state
+_recording_stream = None
+_recording_frames = []
+_last_record_anim = 0.0
+
+
+def _audio_callback(indata, frames, time_info, status):
+    _recording_frames.append(indata.copy())
+
+
+def _redraw_current_state():
+    """Redraw whatever screen was showing before recording started."""
+    s = state.current_state
+    if s == state.AppState.MAIN:
+        display.draw_main_screen()
+    elif s in (state.AppState.MAIN_MENU, state.AppState.SETTINGS_MENU,
+               state.AppState.GAMES_MENU, state.AppState.POWER_MENU,
+               state.AppState.DEV_OPTIONS):
+        display.draw_menu_full(menus.get_menu_title())
+    elif s == state.AppState.DRAWING:
+        state.drawing_dirty = True
+    elif s == state.AppState.ABOUT:
+        display.draw_about_screen()
+    elif s == state.AppState.POWER_CONFIRM:
+        display.draw_power_confirm(state.power_confirm_action)
+    elif s == state.AppState.VOLUME:
+        display.draw_slider_screen("Volume", state.current_volume, "%")
+    elif s == state.AppState.BRIGHTNESS:
+        display.draw_slider_screen("Brightness", state.current_brightness, "%")
+    elif s == state.AppState.TRACKBALL_SENSITIVITY:
+        display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
+    elif s == state.AppState.SCREEN_TIMEOUT:
+        pct = int((state.screen_timeout - 15) / (300 - 15) * 100)
+        display.draw_slider_screen("Screen Timeout", pct, "", f"{state.screen_timeout}s")
+
 
 try:
     print("Starting main loop...")
@@ -93,6 +151,10 @@ try:
                 # Screen is on — update activity time and process normally
                 if any_input:
                     state.last_activity_time = time.time()
+
+                # Block all trackball input during recording/transcribing
+                if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
+                    up = down = left = right = switch = 0
 
                 # Button tracking — switch is an edge event (1 on press AND release),
                 # not a level.  Toggle button_was_down on each edge.
@@ -231,7 +293,9 @@ try:
                                                       state.AppState.ABOUT,
                                                       state.AppState.DRAWING,
                                                       state.AppState.SNAKE,
-                                                      state.AppState.POWER_CONFIRM):
+                                                      state.AppState.POWER_CONFIRM,
+                                                      state.AppState.RECORDING,
+                                                      state.AppState.TRANSCRIBING):
                         state.scroll_accumulator += net_movement
                         if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
                             item_count = len(state.current_menu_items)
@@ -245,6 +309,82 @@ try:
 
                             display.draw_menu_full(menus.get_menu_title())
                             state.scroll_accumulator = 0
+
+        # === Voice recording: detect button press → start recording ===
+        if (state.hat_button_held and state.hat_button_press_time > 0
+                and state.current_state not in (state.AppState.RECORDING,
+                                                state.AppState.TRANSCRIBING)):
+            if state.whisper_model is None or sd is None:
+                display.draw_stt_unavailable_screen()
+                time.sleep(2)
+                state.hat_button_press_time = 0  # Prevent re-trigger
+                _redraw_current_state()
+            else:
+                state.pre_record_state = state.current_state
+                state.current_state = state.AppState.RECORDING
+                state.last_activity_time = time.time()
+                _recording_frames.clear()
+                _recording_stream = sd.InputStream(
+                    samplerate=16000, channels=1, dtype='float32',
+                    callback=_audio_callback)
+                _recording_stream.start()
+                display.draw_recording_screen(True)
+                _last_record_anim = time.time()
+
+        # === Voice recording: animation + release detection ===
+        if state.current_state == state.AppState.RECORDING:
+            now = time.time()
+            if now - _last_record_anim >= 0.5:
+                phase = int((now - state.hat_button_press_time) / 0.5) % 2 == 0
+                display.draw_recording_screen(phase)
+                _last_record_anim = now
+
+            if not state.hat_button_held:
+                # Button released — stop recording
+                if _recording_stream:
+                    _recording_stream.stop()
+                    _recording_stream.close()
+                    _recording_stream = None
+
+                duration = time.time() - state.hat_button_press_time
+
+                if duration < 0.5:
+                    # Too short — discard silently
+                    state.current_state = state.pre_record_state
+                    _redraw_current_state()
+                else:
+                    # Transcribe
+                    state.current_state = state.AppState.TRANSCRIBING
+                    display.draw_transcribing_screen()
+
+                    audio = (np.concatenate(_recording_frames, axis=0).flatten()
+                             if _recording_frames
+                             else np.array([], dtype=np.float32))
+                    t_start = time.time()
+                    result = state.whisper_model.transcribe(audio)
+                    t_elapsed = time.time() - t_start
+                    text = result["text"].strip()
+
+                    # Benchmark output (always printed)
+                    print(f"Transcribed {duration:.1f}s audio in {t_elapsed:.1f}s | Result: {text}")
+                    logger.debug_log(f"Transcription time: {t_elapsed:.1f}s, audio duration: {duration:.1f}s")
+
+                    queries.log_query({
+                        "timestamp": datetime.now().isoformat(timespec='seconds'),
+                        "transcript": text,
+                        "duration_seconds": round(duration, 1),
+                        "transcription_time_seconds": round(t_elapsed, 1),
+                        "whisper_model": "tiny",
+                        "audio_file": None,
+                    })
+
+                    display.draw_transcript_screen(text)
+                    time.sleep(3)
+
+                    state.current_state = state.pre_record_state
+                    _redraw_current_state()
+
+                _recording_frames.clear()
 
         # Main screen clock update — only redraws when the second changes and screen is on
         if state.current_state == state.AppState.MAIN and state.screen_on:
@@ -271,10 +411,12 @@ try:
             state.ota_status_changed = False
             display.draw_about_status()
 
-        # Screen timeout check — disabled in Party Mode, Drawing, and Snake
+        # Screen timeout check — disabled in Party Mode, Drawing, Snake, and Recording
         if state.screen_on and state.current_state not in (state.AppState.PARTY_MODE,
                                                              state.AppState.DRAWING,
-                                                             state.AppState.SNAKE):
+                                                             state.AppState.SNAKE,
+                                                             state.AppState.RECORDING,
+                                                             state.AppState.TRANSCRIBING):
             if time.time() - state.last_activity_time > state.screen_timeout:
                 state.screen_on = False
                 hardware.board.set_backlight(0)

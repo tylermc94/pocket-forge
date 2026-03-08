@@ -19,6 +19,8 @@ class AppState:
     DEV_OPTIONS           = "dev_options"
     SNAKE                 = "snake"
     POWER_CONFIRM         = "power_confirm"
+    RECORDING             = "recording"
+    TRANSCRIBING          = "transcribing"
 
 
 # Canvas
@@ -90,6 +92,12 @@ snake_paused     = False
 
 # Power confirmation state
 power_confirm_action = None  # "shutdown" or "reboot"
+
+# Voice recording / STT state
+whisper_model        = None
+hat_button_held      = False
+hat_button_press_time = 0.0
+pre_record_state     = None
 
 # Debug mode
 debug = False

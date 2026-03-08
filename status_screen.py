@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import os
 import time
+import wave
 import subprocess
 from datetime import datetime
 
@@ -360,10 +362,32 @@ try:
                     audio = (np.concatenate(_recording_frames, axis=0).flatten()
                              if _recording_frames
                              else np.array([], dtype=np.float32))
+
+                    # Write temp WAV for whisper.cpp
+                    wav_path = "/tmp/pf_recording.wav"
+                    audio_int16 = (audio * 32767).astype(np.int16)
+                    with wave.open(wav_path, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(16000)
+                        wf.writeframes(audio_int16.tobytes())
+
                     t_start = time.time()
-                    result = state.whisper_model.transcribe(audio)
+                    wresult = subprocess.run(
+                        [state.whisper_cpp_bin,
+                         '-m', state.whisper_cpp_model,
+                         '-f', wav_path,
+                         '--no-timestamps',
+                         '-l', 'en',
+                         '-t', '4'],
+                        capture_output=True, text=True, timeout=120)
                     t_elapsed = time.time() - t_start
-                    text = result["text"].strip()
+                    text = wresult.stdout.strip()
+
+                    try:
+                        os.remove(wav_path)
+                    except OSError:
+                        pass
 
                     # Benchmark output (always printed)
                     print(f"Transcribed {duration:.1f}s audio in {t_elapsed:.1f}s | Result: {text}")

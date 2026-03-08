@@ -94,7 +94,9 @@ snake_paused     = False
 power_confirm_action = None  # "shutdown" or "reboot"
 
 # Voice recording / STT state
-whisper_model        = None
+whisper_model        = None   # None = unavailable, "tiny" = model name
+whisper_cpp_bin      = None   # Path to whisper-cli binary
+whisper_cpp_model    = None   # Path to ggml-tiny.bin model
 hat_button_held      = False
 hat_button_press_time = 0.0
 pre_record_state     = None

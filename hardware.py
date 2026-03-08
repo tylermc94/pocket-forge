@@ -37,15 +37,22 @@ state.screen_timeout      = _s["screen_timeout"]
 state.debug               = _s["debug"]
 board.set_backlight(state.current_brightness)
 
-# Load Whisper STT model (tiny — smallest/fastest)
-_whisper_start = time.time()
-try:
-    import whisper as _whisper
-    state.whisper_model = _whisper.load_model("tiny")
-    print(f"Whisper tiny loaded in {time.time() - _whisper_start:.1f}s")
-except Exception as e:
-    state.whisper_model = None
-    print(f"Whisper failed to load: {e}")
+# Detect whisper.cpp (C++ implementation — works on Pi Zero 2W)
+_WHISPER_CPP_BIN   = os.path.expanduser("~/whisper.cpp/build/bin/whisper-cli")
+_WHISPER_CPP_MODEL = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.bin")
+
+if os.path.isfile(_WHISPER_CPP_BIN) and os.path.isfile(_WHISPER_CPP_MODEL):
+    state.whisper_cpp_bin   = _WHISPER_CPP_BIN
+    state.whisper_cpp_model = _WHISPER_CPP_MODEL
+    state.whisper_model     = "tiny"
+    print(f"whisper.cpp found (tiny model)")
+else:
+    _missing = []
+    if not os.path.isfile(_WHISPER_CPP_BIN):
+        _missing.append(f"binary: {_WHISPER_CPP_BIN}")
+    if not os.path.isfile(_WHISPER_CPP_MODEL):
+        _missing.append(f"model: {_WHISPER_CPP_MODEL}")
+    print(f"whisper.cpp not available — missing {', '.join(_missing)}")
 
 print("Hardware initialized")
 

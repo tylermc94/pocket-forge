@@ -36,8 +36,8 @@ def _do_wake():
     display.draw_main_screen()
 
 
-def _on_hat_button():
-    """HAT button toggles recording: press to start, press again to stop."""
+def _on_hat_button_press():
+    """HAT button pressed — start recording (hold to record)."""
     if state.sleeping:
         _do_wake()
         return
@@ -47,19 +47,19 @@ def _on_hat_button():
         state.last_activity_time = time.time()
         hardware.board.set_backlight(state.current_brightness)
 
-    if state.current_state == state.AppState.TRANSCRIBING:
-        return  # Can't interrupt transcription
-
-    if state.current_state == state.AppState.RECORDING:
-        # Second press — stop recording
-        state.hat_button_held = False
+    if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
         return
 
-    # First press — start recording
     state.hat_button_held = True
     state.hat_button_press_time = time.time()
 
-hardware.board.on_button_press(_on_hat_button)
+
+def _on_hat_button_release():
+    """HAT button released — stop recording and transcribe."""
+    state.hat_button_held = False
+
+hardware.board.on_button_press(_on_hat_button_press)
+hardware.board.on_button_release(_on_hat_button_release)
 
 # Recording runtime state
 _recording_stream = None

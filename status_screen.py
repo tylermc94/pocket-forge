@@ -48,15 +48,14 @@ def _on_hat_button():
         state.last_activity_time = time.time()
         hardware.board.set_backlight(state.current_brightness)
 
-    if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
-        return
-
     if not state.hat_button_held:
-        # Press edge
+        # Press edge — block new presses during recording/transcribing
+        if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
+            return
         state.hat_button_held = True
         state.hat_button_press_time = time.time()
     else:
-        # Release edge
+        # Release edge — always allow so recording can stop
         state.hat_button_held = False
 
 hardware.board.on_button_press(_on_hat_button)

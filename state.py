@@ -17,6 +17,8 @@ class AppState:
     TRACKBALL_SENSITIVITY = "trackball_sensitivity"
     SCREEN_TIMEOUT        = "screen_timeout"
     DEV_OPTIONS           = "dev_options"
+    SNAKE                 = "snake"
+    POWER_CONFIRM         = "power_confirm"
 
 
 # Canvas
@@ -74,6 +76,19 @@ drawing_dirty          = False
 drawing_dx_acc         = 0
 drawing_dy_acc         = 0
 drawing_exit_requested = False
+
+# Snake game state
+snake_body       = []
+snake_direction  = (1, 0)   # (dx, dy) — starts moving right
+snake_food       = (0, 0)
+snake_alive      = True
+snake_score      = 0
+snake_speed      = 6        # moves per second
+snake_last_move  = 0.0
+snake_paused     = False
+
+# Power confirmation state
+power_confirm_action = None  # "shutdown" or "reboot"
 
 # Debug mode
 debug = False

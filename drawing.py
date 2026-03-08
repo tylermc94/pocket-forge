@@ -4,7 +4,7 @@ Drawing game for Pocket Forge.
 Controls:
   Trackball move  — move cursor; leaves a rainbow trail in draw mode
   Trackball click — toggle draw / move mode
-  Hold click 1s   — clear the canvas
+  Hold click      — exit back to Games menu
   HAT button      — exit back to Games menu
 """
 

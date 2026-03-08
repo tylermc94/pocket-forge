@@ -139,7 +139,7 @@ def draw_drawing_screen():
     overlay.ellipse((x - 4, y - 4, x + 4, y + 4), outline=cursor_color)
     mode_label = "DRAW" if state.drawing_mode else "MOVE"
     overlay.text((MARGIN_LEFT, MARGIN_TOP), mode_label, font=FONT_SMALL, fill=cursor_color)
-    overlay.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click: toggle  Hold: clear", font=FONT_SMALL, fill=(80, 80, 80))
+    overlay.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click: Draw/Move  Hold: Exit", font=FONT_SMALL, fill=(80, 80, 80))
     rotated = composite.rotate(180)
     hardware.board.draw_image(0, 0, 240, 280, image_to_rgb565(rotated))
 
@@ -196,6 +196,69 @@ def _draw_about_status_area():
             (MARGIN_LEFT, _ABOUT_STATUS_Y), "> Update available",
             font=FONT_BODY, fill=(255, 255, 0)
         )
+
+
+def draw_snake_screen():
+    """Render the snake game: grid, snake body, food, score, and pause overlay."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+
+    CELL = 10
+    COLS = 24   # 240 / 10
+    ROWS = 24   # play area: rows 0-23 → y pixels 0-239, leaving 240-279 for HUD
+
+    # Draw food
+    fx, fy = state.snake_food
+    state.draw.rectangle(
+        (fx * CELL + 1, fy * CELL + 1, (fx + 1) * CELL - 1, (fy + 1) * CELL - 1),
+        fill=(255, 50, 50),
+    )
+
+    # Draw snake body
+    for i, (sx, sy) in enumerate(state.snake_body):
+        color = (0, 220, 0) if i == 0 else (0, 180, 0)
+        state.draw.rectangle(
+            (sx * CELL, sy * CELL, (sx + 1) * CELL - 1, (sy + 1) * CELL - 1),
+            fill=color,
+        )
+
+    # HUD area (below play field)
+    state.draw.text((MARGIN_LEFT, 244), f"Score: {state.snake_score}", font=FONT_BODY, fill=(255, 255, 255))
+    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM + 10), "Hold: pause", font=FONT_SMALL, fill=(80, 80, 80))
+
+    if state.snake_paused:
+        state.draw.rectangle((40, 100, 200, 160), fill=(0, 0, 0))
+        state.draw.rectangle((40, 100, 200, 160), outline=(255, 255, 0))
+        state.draw.text((68, 118), "PAUSED", font=FONT_TITLE, fill=(255, 255, 0))
+
+    display_image()
+
+
+def draw_snake_dead_screen():
+    """Render game over screen with final score."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((55, 80), "GAME OVER", font=FONT_TITLE, fill=(255, 50, 50))
+    state.draw.text((MARGIN_LEFT, 130), f"Score: {state.snake_score}", font=FONT_BODY, fill=(255, 255, 255))
+    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Hold to exit", font=FONT_SMALL, fill=(100, 100, 100))
+    display_image()
+
+
+def draw_power_confirm(action):
+    """Render power confirmation screen: 'Power off?' or 'Restart?' with Yes/No."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+
+    title = "Power off?" if action == "shutdown" else "Restart?"
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP), title, font=FONT_TITLE, fill=(255, 200, 0))
+
+    for i, item in enumerate(["Yes", "No"]):
+        y_pos = 80 + (i * 40)
+        if i == state.menu_index:
+            state.draw.rectangle((MARGIN_LEFT - 5, y_pos - 2, 230, y_pos + 24), fill=(50, 50, 100))
+            state.draw.text((MARGIN_LEFT, y_pos), f"> {item}", font=FONT_BODY, fill=(255, 255, 0))
+        else:
+            state.draw.text((MARGIN_LEFT + 10, y_pos), item, font=FONT_BODY, fill=(200, 200, 200))
+
+    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), "Click to select", font=FONT_SMALL, fill=(100, 100, 100))
+    display_image()
 
 
 def draw_about_screen():

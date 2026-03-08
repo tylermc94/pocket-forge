@@ -6,6 +6,7 @@ import hardware
 import ota
 import party
 import drawing
+import snake
 import settings
 import logger
 
@@ -25,6 +26,7 @@ def get_menu_title():
         state.AppState.GAMES_MENU:    "Games",
         state.AppState.POWER_MENU:    "Power",
         state.AppState.DEV_OPTIONS:   "Developer Options",
+        state.AppState.POWER_CONFIRM: "Confirm",
     }
     return titles.get(state.current_state, "Menu")
 
@@ -122,6 +124,8 @@ def handle_menu_selection():
             state.current_state = state.AppState.PARTY_MODE
             state.party_speed   = 30
             party.start_party_mode()
+        elif selected == "Snake":
+            snake.start_snake()
         elif selected == "Drawing":
             drawing.start_drawing()
         else:
@@ -144,9 +148,28 @@ def handle_menu_selection():
             state.sleeping  = True
             state.screen_on = False
         elif selected == "Reboot":
-            subprocess.run(['sudo', 'reboot'])
+            state.power_confirm_action = "reboot"
+            state.menu_index = 1  # default to "No"
+            state.current_state = state.AppState.POWER_CONFIRM
+            display.draw_power_confirm("reboot")
         elif selected == "Shutdown":
-            subprocess.run(['sudo', 'shutdown', '-h', 'now'])
+            state.power_confirm_action = "shutdown"
+            state.menu_index = 1  # default to "No"
+            state.current_state = state.AppState.POWER_CONFIRM
+            display.draw_power_confirm("shutdown")
+
+    elif state.current_state == state.AppState.POWER_CONFIRM:
+        # menu_index 0 = Yes, 1 = No
+        if state.menu_index == 0:
+            if state.power_confirm_action == "shutdown":
+                logger.debug_log("Confirmed shutdown")
+                subprocess.run(['sudo', 'shutdown', '-h', 'now'])
+            else:
+                logger.debug_log("Confirmed reboot")
+                subprocess.run(['sudo', 'reboot'])
+        else:
+            enter_submenu(state.AppState.POWER_MENU, state.power_menu_items, "Power")
+        return
 
     elif state.current_state == state.AppState.DEV_OPTIONS:
         if selected == "< Back":

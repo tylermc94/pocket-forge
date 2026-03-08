@@ -8,6 +8,7 @@ import display
 import menus
 import party
 import drawing
+import snake
 import logger
 
 
@@ -29,6 +30,8 @@ def _on_hat_button():
         return
     if state.current_state == state.AppState.DRAWING:
         drawing.stop_drawing()
+    elif state.current_state == state.AppState.SNAKE:
+        snake.stop_snake()
     else:
         print("Recording mode TODO")
 
@@ -101,7 +104,21 @@ try:
                     click_duration  = time.time() - state.click_start_time
                     logger.debug_log(f"Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
 
-                    if (click_duration < 0.5 and
+                    # Long press actions (hold > 0.8s)
+                    if click_duration > 0.8:
+                        if state.current_state == state.AppState.DRAWING:
+                            logger.debug_log("Drawing: hold to exit")
+                            drawing.stop_drawing()
+                        elif state.current_state == state.AppState.SNAKE:
+                            if state.snake_alive and not state.snake_paused:
+                                logger.debug_log("Snake: hold to pause")
+                                state.snake_paused = True
+                                display.draw_snake_screen()
+                            elif not state.snake_alive:
+                                logger.debug_log("Snake: hold to exit (dead)")
+                                snake.stop_snake()
+
+                    elif (click_duration < 0.5 and
                             state.movement_during_click < state.MOVEMENT_THRESHOLD and
                             time.time() - state.last_click_time > 0.3):
 
@@ -109,12 +126,15 @@ try:
                         state.last_click_time = time.time()
 
                         if state.current_state == state.AppState.DRAWING:
-                            if click_duration >= 1.0:
-                                drawing.clear_canvas()
-                                state.drawing_dirty = True
-                            else:
-                                drawing.toggle_mode()
-                                state.drawing_dirty = True
+                            drawing.toggle_mode()
+                            state.drawing_dirty = True
+
+                        elif state.current_state == state.AppState.SNAKE:
+                            if state.snake_paused:
+                                logger.debug_log("Snake: click to resume")
+                                state.snake_paused = False
+                                state.snake_last_move = time.time()
+                                display.draw_snake_screen()
 
                         elif state.current_state == state.AppState.PARTY_MODE:
                             party.stop_party_mode()
@@ -140,12 +160,30 @@ try:
                     if up or down or left or right:
                         drawing.handle_movement(right - left, down - up)
 
+                # Snake game — trackball sets direction
+                if state.current_state == state.AppState.SNAKE and state.snake_alive and not state.snake_paused:
+                    if up or down or left or right:
+                        # Use dominant axis
+                        dx = right - left
+                        dy = down - up
+                        if abs(dx) >= abs(dy) and dx != 0:
+                            snake.set_direction(1 if dx > 0 else -1, 0)
+                        elif dy != 0:
+                            snake.set_direction(0, 1 if dy > 0 else -1)
+
                 # Scroll handling
                 net_movement = down - up
                 if abs(net_movement) > 0:
                     if state.current_state == state.AppState.PARTY_MODE:
                         with state.party_lock:
                             state.party_speed = max(10, min(100, state.party_speed + (2 if net_movement > 0 else -2)))
+
+                    elif state.current_state == state.AppState.POWER_CONFIRM:
+                        state.scroll_accumulator += net_movement
+                        if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
+                            state.menu_index = 1 if state.menu_index == 0 else 0
+                            display.draw_power_confirm(state.power_confirm_action)
+                            state.scroll_accumulator = 0
 
                     elif state.current_state in (state.AppState.VOLUME,
                                                   state.AppState.BRIGHTNESS,
@@ -186,7 +224,9 @@ try:
 
                     elif state.current_state not in (state.AppState.MAIN,
                                                       state.AppState.ABOUT,
-                                                      state.AppState.DRAWING):
+                                                      state.AppState.DRAWING,
+                                                      state.AppState.SNAKE,
+                                                      state.AppState.POWER_CONFIRM):
                         state.scroll_accumulator += net_movement
                         if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
                             item_count = len(state.current_menu_items)
@@ -213,14 +253,23 @@ try:
             state.drawing_dirty = False
             display.draw_drawing_screen()
 
+        # Snake game — tick and redraw
+        if state.current_state == state.AppState.SNAKE:
+            if snake.tick():
+                if state.snake_alive:
+                    display.draw_snake_screen()
+                else:
+                    display.draw_snake_dead_screen()
+
         # About screen background update check
         if state.current_state == state.AppState.ABOUT and state.ota_status_changed:
             state.ota_status_changed = False
             display.draw_about_status()
 
-        # Screen timeout check — disabled in Party Mode and Drawing game
+        # Screen timeout check — disabled in Party Mode, Drawing, and Snake
         if state.screen_on and state.current_state not in (state.AppState.PARTY_MODE,
-                                                             state.AppState.DRAWING):
+                                                             state.AppState.DRAWING,
+                                                             state.AppState.SNAKE):
             if time.time() - state.last_activity_time > state.screen_timeout:
                 state.screen_on = False
                 hardware.board.set_backlight(0)

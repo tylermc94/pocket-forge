@@ -32,7 +32,7 @@ _s = _settings.load_settings()
 state.current_volume      = _s["volume"]
 state.current_brightness  = _s["brightness"]
 state.current_sensitivity = _s["sensitivity"]
-state.SCROLL_SENSITIVITY  = 11 - state.current_sensitivity
+state.SCROLL_SENSITIVITY  = 21 - state.current_sensitivity * 2
 state.screen_timeout      = _s["screen_timeout"]
 state.debug               = _s["debug"]
 board.set_backlight(state.current_brightness)

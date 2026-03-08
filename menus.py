@@ -60,7 +60,7 @@ def handle_menu_selection():
         if state.ota_status == "update_available":
             logger.debug_log("Applying update from About screen")
             ota.apply_update()
-        enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
+        enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
         return
 
     selected = state.current_menu_items[state.menu_index]
@@ -70,6 +70,12 @@ def handle_menu_selection():
         if selected == "Status":
             state.current_state = state.AppState.MAIN
             display.draw_main_screen()
+        elif selected == "About":
+            state.ota_status         = None
+            state.ota_status_changed = False
+            state.current_state      = state.AppState.ABOUT
+            display.draw_about_screen()
+            ota.fetch_update_status()
         elif selected == "Settings":
             enter_submenu(state.AppState.SETTINGS_MENU, state.settings_menu_items, "Settings")
         elif selected == "Games":
@@ -80,12 +86,6 @@ def handle_menu_selection():
     elif state.current_state == state.AppState.SETTINGS_MENU:
         if selected == "< Back":
             enter_submenu(state.AppState.MAIN_MENU, state.main_menu_items, "Menu")
-        elif selected == "About":
-            state.ota_status         = None
-            state.ota_status_changed = False
-            state.current_state      = state.AppState.ABOUT
-            display.draw_about_screen()
-            ota.fetch_update_status()
         elif selected == "Volume":
             try:
                 result = subprocess.run(['amixer', 'sget', 'Speaker'], capture_output=True, text=True)
@@ -145,8 +145,9 @@ def handle_menu_selection():
             subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'off'], capture_output=True)
             logger.debug_log("Sleep: WiFi disabled, stopping battery thread")
             hardware.stop_battery_thread()
-            state.sleeping  = True
-            state.screen_on = False
+            state.sleeping         = True
+            state.screen_on        = False
+            state.sleep_enter_time = time.time()
         elif selected == "Reboot":
             state.power_confirm_action = "reboot"
             state.menu_index = 1  # default to "No"

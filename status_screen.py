@@ -57,8 +57,9 @@ try:
             any_input = bool(switch or up or down or left or right)
 
             if state.sleeping:
-                if any_input:
+                if any_input and time.time() - state.sleep_enter_time > 1.5:
                     _do_wake()
+                    button_was_down = False
                 time.sleep(0.008)
                 continue
 
@@ -68,10 +69,11 @@ try:
                     state.screen_on          = True
                     state.last_activity_time = time.time()
                     hardware.board.set_backlight(state.current_brightness)
-                    # Track real button state but mark the click as too long so it
-                    # won't be registered as a valid click on release.
-                    button_was_down = bool(switch)
+                    # If this wake was from a button press edge, mark it as held
+                    # with a stale timestamp so the release edge won't register
+                    # as a valid click.
                     if switch:
+                        button_was_down             = True
                         state.click_start_time      = time.time() - 1.0
                         state.movement_during_click = 0
                     # Redraw current screen (framebuffer may hold stale content)
@@ -92,65 +94,68 @@ try:
                 if any_input:
                     state.last_activity_time = time.time()
 
-                # Button press tracking
-                if switch and not button_was_down:
-                    button_was_down             = True
-                    state.click_start_time      = time.time()
-                    state.movement_during_click = 0
-                    logger.debug_log(f"Button pressed, state={state.current_state}")
-
-                elif not switch and button_was_down:
-                    button_was_down = False
-                    click_duration  = time.time() - state.click_start_time
-                    logger.debug_log(f"Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
-
-                    # Long press actions (hold > 0.8s)
-                    if click_duration > 0.8:
-                        if state.current_state == state.AppState.DRAWING:
-                            logger.debug_log("Drawing: hold to exit")
-                            drawing.stop_drawing()
-                        elif state.current_state == state.AppState.SNAKE:
-                            if state.snake_alive and not state.snake_paused:
-                                logger.debug_log("Snake: hold to pause")
-                                state.snake_paused = True
-                                display.draw_snake_screen()
-                            elif not state.snake_alive:
-                                logger.debug_log("Snake: hold to exit (dead)")
-                                snake.stop_snake()
-
-                    elif (click_duration < 0.5 and
-                            state.movement_during_click < state.MOVEMENT_THRESHOLD and
-                            time.time() - state.last_click_time > 0.3):
-
-                        logger.debug_log(f"Valid click registered, state={state.current_state}")
-                        state.last_click_time = time.time()
-
-                        if state.current_state == state.AppState.DRAWING:
-                            drawing.toggle_mode()
-                            state.drawing_dirty = True
-
-                        elif state.current_state == state.AppState.SNAKE:
-                            if state.snake_paused:
-                                logger.debug_log("Snake: click to resume")
-                                state.snake_paused = False
-                                state.snake_last_move = time.time()
-                                display.draw_snake_screen()
-
-                        elif state.current_state == state.AppState.PARTY_MODE:
-                            party.stop_party_mode()
-                            menus.enter_submenu(state.AppState.GAMES_MENU, state.games_menu_items, "Games")
-
-                        elif state.current_state == state.AppState.MAIN:
-                            state.current_state      = state.AppState.MAIN_MENU
-                            state.current_menu_items = state.main_menu_items
-                            state.menu_index         = 0
-                            state.prev_menu_index    = -1
-                            display.draw_menu_full("Menu")
-
-                        else:
-                            menus.handle_menu_selection()
+                # Button tracking — switch is an edge event (1 on press AND release),
+                # not a level.  Toggle button_was_down on each edge.
+                if switch:
+                    if not button_was_down:
+                        # Press edge
+                        button_was_down             = True
+                        state.click_start_time      = time.time()
+                        state.movement_during_click = 0
+                        logger.debug_log(f"Button pressed, state={state.current_state}")
                     else:
-                        logger.debug_log("Click rejected")
+                        # Release edge
+                        button_was_down = False
+                        click_duration  = time.time() - state.click_start_time
+                        logger.debug_log(f"Button released, duration={click_duration:.3f}s, movement={state.movement_during_click}, time_since_last={time.time() - state.last_click_time:.3f}s")
+
+                        # Long press actions (hold > 0.8s)
+                        if click_duration > 0.8:
+                            if state.current_state == state.AppState.DRAWING:
+                                logger.debug_log("Drawing: hold to exit")
+                                drawing.stop_drawing()
+                            elif state.current_state == state.AppState.SNAKE:
+                                if state.snake_alive and not state.snake_paused:
+                                    logger.debug_log("Snake: hold to pause")
+                                    state.snake_paused = True
+                                    display.draw_snake_screen()
+                                elif not state.snake_alive:
+                                    logger.debug_log("Snake: hold to exit (dead)")
+                                    snake.stop_snake()
+
+                        elif (click_duration < 0.5 and
+                                state.movement_during_click < state.MOVEMENT_THRESHOLD and
+                                time.time() - state.last_click_time > 0.3):
+
+                            logger.debug_log(f"Valid click registered, state={state.current_state}")
+                            state.last_click_time = time.time()
+
+                            if state.current_state == state.AppState.DRAWING:
+                                drawing.toggle_mode()
+                                state.drawing_dirty = True
+
+                            elif state.current_state == state.AppState.SNAKE:
+                                if state.snake_paused:
+                                    logger.debug_log("Snake: click to resume")
+                                    state.snake_paused = False
+                                    state.snake_last_move = time.time()
+                                    display.draw_snake_screen()
+
+                            elif state.current_state == state.AppState.PARTY_MODE:
+                                party.stop_party_mode()
+                                menus.enter_submenu(state.AppState.GAMES_MENU, state.games_menu_items, "Games")
+
+                            elif state.current_state == state.AppState.MAIN:
+                                state.current_state      = state.AppState.MAIN_MENU
+                                state.current_menu_items = state.main_menu_items
+                                state.menu_index         = 0
+                                state.prev_menu_index    = -1
+                                display.draw_menu_full("Menu")
+
+                            else:
+                                menus.handle_menu_selection()
+                        else:
+                            logger.debug_log("Click rejected")
 
                 if button_was_down:
                     state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
@@ -210,7 +215,7 @@ try:
                                 new_val = max(1, min(10, state.current_sensitivity + delta))
                                 if new_val != state.current_sensitivity:
                                     state.current_sensitivity = new_val
-                                    state.SCROLL_SENSITIVITY  = 11 - state.current_sensitivity
+                                    state.SCROLL_SENSITIVITY  = 21 - state.current_sensitivity * 2
                                     display.draw_slider_screen("Sensitivity", state.current_sensitivity * 10, "%")
                             else:  # SCREEN_TIMEOUT
                                 delta   = 15 if state.scroll_accumulator < 0 else -15

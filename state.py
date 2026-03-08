@@ -32,8 +32,8 @@ prev_menu_index    = -1
 scroll_accumulator = 0
 
 # Menu item lists
-main_menu_items     = ["Status", "Settings", "Games", "Power"]
-settings_menu_items = ["About", "Volume", "Brightness", "Trackball Sensitivity", "Screen Timeout", "WiFi", "Developer Options", "< Back"]
+main_menu_items     = ["Status", "About", "Settings", "Games", "Power"]
+settings_menu_items = ["Volume", "Brightness", "Trackball Sensitivity", "Screen Timeout", "WiFi", "Developer Options", "< Back"]
 dev_options_menu_items = ["Debug Mode: OFF", "< Back"]
 games_menu_items    = ["Party Mode", "Snake", "Pong", "Drawing", "< Back"]
 power_menu_items    = ["Sleep", "Reboot", "Shutdown", "< Back"]
@@ -52,11 +52,12 @@ screen_on          = True
 screen_timeout     = 60      # seconds; overwritten by settings on startup
 last_activity_time = time.time()
 sleeping           = False
+sleep_enter_time   = 0.0
 
 # Volume / brightness / sensitivity state
 current_volume       = 50
 current_brightness   = 100
-current_sensitivity  = 5   # Range 1-10; SCROLL_SENSITIVITY = 11 - current_sensitivity
+current_sensitivity  = 5   # Range 1-10; SCROLL_SENSITIVITY = 21 - current_sensitivity * 2
 
 # Party mode state
 party_active = False

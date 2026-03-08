@@ -37,10 +37,9 @@ def _do_wake():
 
 
 def _on_hat_button():
+    """HAT button toggles recording: press to start, press again to stop."""
     if state.sleeping:
         _do_wake()
-        state.hat_button_held = True   # Absorb press; release will clear
-        state.hat_button_press_time = 0  # Don't start recording after wake
         return
 
     if not state.screen_on:
@@ -48,15 +47,17 @@ def _on_hat_button():
         state.last_activity_time = time.time()
         hardware.board.set_backlight(state.current_brightness)
 
-    if not state.hat_button_held:
-        # Press edge — block new presses during recording/transcribing
-        if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
-            return
-        state.hat_button_held = True
-        state.hat_button_press_time = time.time()
-    else:
-        # Release edge — always allow so recording can stop
+    if state.current_state == state.AppState.TRANSCRIBING:
+        return  # Can't interrupt transcription
+
+    if state.current_state == state.AppState.RECORDING:
+        # Second press — stop recording
         state.hat_button_held = False
+        return
+
+    # First press — start recording
+    state.hat_button_held = True
+    state.hat_button_press_time = time.time()
 
 hardware.board.on_button_press(_on_hat_button)
 
@@ -372,14 +373,16 @@ try:
                         wf.writeframes(audio_int16.tobytes())
 
                     t_start = time.time()
+                    _wcmd = [state.whisper_cpp_bin,
+                             '-m', state.whisper_cpp_model,
+                             '-f', wav_path,
+                             '--no-timestamps',
+                             '-t', '4']
+                    # English-only model doesn't need -l flag; set it for multilingual
+                    if not state.whisper_model.endswith('.en'):
+                        _wcmd += ['-l', 'en']
                     wresult = subprocess.run(
-                        [state.whisper_cpp_bin,
-                         '-m', state.whisper_cpp_model,
-                         '-f', wav_path,
-                         '--no-timestamps',
-                         '-l', 'en',
-                         '-t', '4'],
-                        capture_output=True, text=True, timeout=120)
+                        _wcmd, capture_output=True, text=True, timeout=120)
                     t_elapsed = time.time() - t_start
                     text = wresult.stdout.strip()
 
@@ -397,7 +400,7 @@ try:
                         "transcript": text,
                         "duration_seconds": round(duration, 1),
                         "transcription_time_seconds": round(t_elapsed, 1),
-                        "whisper_model": "tiny",
+                        "whisper_model": state.whisper_model,
                         "audio_file": None,
                     })
 

@@ -2,6 +2,7 @@
 import base64
 import io
 import os
+import threading
 import time
 import wave
 import subprocess
@@ -70,6 +71,20 @@ hardware.board.on_button_release(_on_hat_button_release)
 _recording_stream = None
 _recording_frames = []
 _last_record_anim = 0.0
+
+# Forge API thread state
+# _forge_outcome is populated by the worker thread: [(result, elapsed)]
+# Main loop checks it in the SENDING handler — no mutex needed (GIL + append/clear are atomic).
+_forge_outcome           = []   # empty = in-flight, [(result, t)] = done
+_forge_future            = None # daemon Thread reference
+_forge_recording_duration = 0.0 # audio duration captured at launch time for the log
+
+
+def _forge_worker(audio_bytes):
+    """Run in a daemon thread. Stores (result, elapsed) into _forge_outcome."""
+    t0     = time.time()
+    result = forge_api.query_forge(audio_bytes)
+    _forge_outcome.append((result, time.time() - t0))
 
 
 def _audio_callback(indata, frames, time_info, status):
@@ -234,9 +249,9 @@ try:
                                     logger.debug_log("Snake: hold to exit (dead)")
                                     snake.stop_snake()
 
-                        elif (click_duration < 0.5 and
+                        elif (0.02 <= click_duration < 0.5 and
                                 state.movement_during_click < state.MOVEMENT_THRESHOLD and
-                                time.time() - state.last_click_time > 0.15):
+                                time.time() - state.last_click_time > 0.10):
 
                             logger.debug_log(f"Click accepted: dur={click_duration:.3f}s mov={state.movement_during_click} state={state.current_state}")
                             state.last_click_time = time.time()
@@ -271,13 +286,15 @@ try:
                                 menus.handle_menu_selection()
                         else:
                             _reason = []
-                            if click_duration >= 0.5:
+                            if click_duration < 0.02:
+                                _reason.append(f"dur={click_duration:.3f}s<0.02(bounce)")
+                            elif click_duration >= 0.5:
                                 _reason.append(f"dur={click_duration:.3f}s>=0.5")
                             if state.movement_during_click >= state.MOVEMENT_THRESHOLD:
                                 _reason.append(f"mov={state.movement_during_click}>={state.MOVEMENT_THRESHOLD}")
                             _since = time.time() - state.last_click_time
-                            if _since <= 0.15:
-                                _reason.append(f"debounce={_since:.3f}s<=0.15")
+                            if _since <= 0.10:
+                                _reason.append(f"debounce={_since:.3f}s<=0.10")
                             logger.debug_log(f"Click rejected: {', '.join(_reason)}")
 
                 if button_was_down:
@@ -464,80 +481,87 @@ try:
                         state.current_state = state.pre_record_state
                         _redraw_current_state()
                     else:
-                        # Send to Forge API
+                        # Kick off Forge API call in a daemon thread so the main
+                        # loop stays alive for the dot animation.
+                        global _forge_future, _forge_recording_duration
+                        _forge_recording_duration = duration
+                        _forge_outcome.clear()
                         state.sending_dot_frame       = 0
                         state.sending_last_frame_time = time.time()
                         state.current_state = state.AppState.SENDING
                         display.draw_sending_screen(0)
-
-                        t_start = time.time()
-                        result  = forge_api.query_forge(audio_bytes)
-                        t_elapsed = time.time() - t_start
-
-                        if result is None:
-                            # Network / API error
-                            logger.debug_log(f"Forge query failed after {t_elapsed:.1f}s")
-                            print(f"Forge unavailable after {t_elapsed:.1f}s")
-                            queries.log_query({
-                                "timestamp":           datetime.now().isoformat(timespec='seconds'),
-                                "transcript":          None,
-                                "local_transcript":    None,
-                                "forge_response":      None,
-                                "forge_response_time": round(t_elapsed, 1),
-                                "duration_seconds":    round(duration, 1),
-                                "success":             False,
-                            })
-                            display.draw_forge_unavailable_screen()
-                            time.sleep(2)
-                            state.current_state = state.pre_record_state
-                            _redraw_current_state()
-                        else:
-                            # Success
-                            transcript    = result.get("transcript", "")
-                            response_text = result.get("response", "")
-                            audio_b64     = result.get("audio", "")
-                            resp_time     = result.get("_response_time", round(t_elapsed, 2))
-
-                            print(f"Forge: {t_elapsed:.1f}s | {transcript!r}")
-                            logger.debug_log(f"Forge response: {response_text!r}")
-
-                            queries.log_query({
-                                "timestamp":           datetime.now().isoformat(timespec='seconds'),
-                                "transcript":          transcript,
-                                "local_transcript":    None,
-                                "forge_response":      response_text,
-                                "forge_response_time": resp_time,
-                                "duration_seconds":    round(duration, 1),
-                                "success":             True,
-                            })
-
-                            # Show response screen and play audio
-                            state.response_transcript   = transcript
-                            state.response_text         = response_text
-                            state.response_scroll_offset = 0
-                            state.response_auto_scrolling = False
-                            state.response_scroll_done_time = 0.0
-                            state.current_state = state.AppState.PLAYING
-                            display.draw_response_screen(transcript, response_text, 0)
-
-                            if audio_b64:
-                                _play_forge_audio(audio_b64)
-
-                            # Playback done — transition to RESPONSE with auto-scroll
-                            state.current_state           = state.AppState.RESPONSE
-                            state.response_auto_scrolling = True
-                            state.response_last_auto_scroll = time.time()
-                            state.response_scroll_done_time = 0.0
+                        _forge_future = threading.Thread(
+                            target=_forge_worker, args=(audio_bytes,), daemon=True)
+                        _forge_future.start()
+                        # Result is picked up by the SENDING handler below.
 
                 _recording_frames.clear()
 
-        # === SENDING state: advance animated dot frame ===
+        # === SENDING state: animate dots + handle forge result ===
         if state.current_state == state.AppState.SENDING:
             now = time.time()
+
+            # Advance dot animation
             if now - state.sending_last_frame_time > 0.4:
                 state.sending_dot_frame       = (state.sending_dot_frame + 1) % 3
                 state.sending_last_frame_time = now
                 display.draw_sending_screen(state.sending_dot_frame)
+
+            # Check whether the forge thread has posted a result
+            if _forge_outcome:
+                result, t_elapsed = _forge_outcome[0]
+                duration = _forge_recording_duration
+
+                if result is None:
+                    logger.debug_log(f"Forge query failed after {t_elapsed:.1f}s")
+                    print(f"Forge unavailable after {t_elapsed:.1f}s")
+                    queries.log_query({
+                        "timestamp":           datetime.now().isoformat(timespec='seconds'),
+                        "transcript":          None,
+                        "local_transcript":    None,
+                        "forge_response":      None,
+                        "forge_response_time": round(t_elapsed, 1),
+                        "duration_seconds":    round(duration, 1),
+                        "success":             False,
+                    })
+                    display.draw_forge_unavailable_screen()
+                    time.sleep(2)
+                    state.current_state = state.pre_record_state
+                    _redraw_current_state()
+                else:
+                    transcript    = result.get("transcript", "")
+                    response_text = result.get("response", "")
+                    audio_b64     = result.get("audio", "")
+                    resp_time     = result.get("_response_time", round(t_elapsed, 2))
+
+                    print(f"Forge: {t_elapsed:.1f}s | {transcript!r}")
+                    logger.debug_log(f"Forge response: {response_text!r}")
+
+                    queries.log_query({
+                        "timestamp":           datetime.now().isoformat(timespec='seconds'),
+                        "transcript":          transcript,
+                        "local_transcript":    None,
+                        "forge_response":      response_text,
+                        "forge_response_time": resp_time,
+                        "duration_seconds":    round(duration, 1),
+                        "success":             True,
+                    })
+
+                    state.response_transcript    = transcript
+                    state.response_text          = response_text
+                    state.response_scroll_offset = 0
+                    state.response_auto_scrolling   = False
+                    state.response_scroll_done_time = 0.0
+                    state.current_state = state.AppState.PLAYING
+                    display.draw_response_screen(transcript, response_text, 0)
+
+                    if audio_b64:
+                        _play_forge_audio(audio_b64)
+
+                    state.current_state             = state.AppState.RESPONSE
+                    state.response_auto_scrolling   = True
+                    state.response_last_auto_scroll = time.time()
+                    state.response_scroll_done_time = 0.0
 
         # === RESPONSE state: HAT-button exit, auto-scroll, auto-exit ===
         if state.current_state == state.AppState.RESPONSE:

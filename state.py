@@ -49,7 +49,7 @@ current_menu_items = main_menu_items
 last_click_time       = 0
 click_start_time      = 0
 movement_during_click = 0
-MOVEMENT_THRESHOLD    = 5
+MOVEMENT_THRESHOLD    = 15
 SCROLL_SENSITIVITY    = 5
 
 # Screen state

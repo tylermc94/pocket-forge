@@ -38,6 +38,7 @@ def _do_wake():
     state.screen_on        = True
     state.last_activity_time = time.time()
     state.current_state    = state.AppState.MAIN
+    hardware.set_whisplay_led(0, 0, 0)
     hardware.board.set_backlight(state.current_brightness)
     display.draw_main_screen()
 
@@ -181,6 +182,13 @@ try:
                 if any_input and time.time() - state.sleep_enter_time > 1.5:
                     _do_wake()
                     button_was_down = False
+                else:
+                    # Slow dim-white breathing pulse while sleeping
+                    now = time.time()
+                    if now - state.sleep_led_last_update >= 0.05:
+                        state.sleep_led_last_update = now
+                        v = int(20 + 20 * math.sin(now * math.pi / 2))
+                        hardware.set_whisplay_led(v, v, v)
                 time.sleep(0.008)
                 continue
 
@@ -189,6 +197,7 @@ try:
                 if any_input:
                     state.screen_on          = True
                     state.last_activity_time = time.time()
+                    hardware.set_whisplay_led(0, 0, 0)
                     hardware.board.set_backlight(state.current_brightness)
                     # If this wake was from a button press edge, mark it as held
                     # with a stale timestamp so the release edge won't register
@@ -653,6 +662,14 @@ try:
             state.ota_status_changed = False
             display.draw_about_status()
 
+        # LED breathing pulse when screen is off due to timeout (but not full sleep)
+        if not state.screen_on and not state.sleeping:
+            now = time.time()
+            if now - state.sleep_led_last_update >= 0.05:
+                state.sleep_led_last_update = now
+                v = int(20 + 20 * math.sin(now * math.pi / 2))
+                hardware.set_whisplay_led(v, v, v)
+
         # Screen timeout check — disabled in Party Mode, Drawing, Snake, Recording, and Forge flow
         if state.screen_on and state.current_state not in (state.AppState.PARTY_MODE,
                                                              state.AppState.DRAWING,
@@ -672,5 +689,6 @@ except KeyboardInterrupt:
     print("\nExiting...")
 finally:
     party.stop_party_mode()
+    hardware.set_whisplay_led(0, 0, 0)
     hardware.board.cleanup()
     hardware.set_trackball_color(0, 0, 0)

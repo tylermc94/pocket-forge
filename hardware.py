@@ -69,6 +69,14 @@ else:
 print("Hardware initialized")
 
 
+def set_whisplay_led(r, g, b):
+    """Set the Whisplay HAT status LED."""
+    try:
+        board.set_rgb(r, g, b)
+    except Exception:
+        pass
+
+
 def set_trackball_color(r, g, b, w=0):
     if trackball_available:
         try:

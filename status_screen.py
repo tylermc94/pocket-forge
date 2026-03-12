@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import base64
 import io
+import math
 import os
 import threading
 import time
@@ -257,6 +258,7 @@ try:
                             state.last_click_time = time.time()
 
                             if state.current_state == state.AppState.RESPONSE:
+                                hardware.set_trackball_color(0, 0, 0)
                                 state.current_state = state.pre_record_state
                                 _redraw_current_state()
 
@@ -426,6 +428,7 @@ try:
                     samplerate=16000, channels=1, dtype='float32',
                     callback=_audio_callback)
                 _recording_stream.start()
+                hardware.set_trackball_color(255, 0, 0)
                 display.draw_recording_screen(True)
                 _last_record_anim = time.time()
 
@@ -448,6 +451,7 @@ try:
 
                 if duration < 0.5:
                     # Too short — discard silently
+                    hardware.set_trackball_color(0, 0, 0)
                     state.current_state = state.pre_record_state
                     _redraw_current_state()
                 else:
@@ -467,6 +471,7 @@ try:
                     # Check Forge is configured before sending
                     _sdata = settings.load_settings()
                     if not _sdata.get("forge_api_key", ""):
+                        hardware.set_trackball_color(0, 0, 0)
                         display.draw_forge_not_configured_screen()
                         time.sleep(2)
                         queries.log_query({
@@ -507,6 +512,10 @@ try:
                 state.sending_last_frame_time = now
                 display.draw_sending_screen(state.sending_dot_frame)
 
+            # Pulse orange trackball (cycle ~1.5 s, range 60–255)
+            pulse = int((math.sin(now * math.pi * 1.3) + 1) / 2 * 195 + 60)
+            hardware.set_trackball_color(pulse, pulse // 2, 0)
+
             # Check whether the forge thread has posted a result
             if _forge_outcome:
                 result, t_elapsed = _forge_outcome[0]
@@ -524,6 +533,7 @@ try:
                         "duration_seconds":    round(duration, 1),
                         "success":             False,
                     })
+                    hardware.set_trackball_color(0, 0, 0)
                     display.draw_forge_unavailable_screen()
                     time.sleep(2)
                     state.current_state = state.pre_record_state
@@ -558,6 +568,7 @@ try:
                     if audio_b64:
                         _play_forge_audio(audio_b64)
 
+                    hardware.set_trackball_color(0, 255, 0)
                     state.current_state             = state.AppState.RESPONSE
                     state.response_auto_scrolling   = True
                     state.response_last_auto_scroll = time.time()
@@ -571,6 +582,7 @@ try:
             if state.hat_button_held:
                 state.hat_button_held       = False
                 state.hat_button_press_time = 0
+                hardware.set_trackball_color(0, 0, 0)
                 state.current_state = state.pre_record_state
                 _redraw_current_state()
 
@@ -589,6 +601,7 @@ try:
                     if state.response_scroll_done_time == 0.0:
                         state.response_scroll_done_time = now
                     elif now - state.response_scroll_done_time >= 2.0:
+                        hardware.set_trackball_color(0, 0, 0)
                         state.current_state = state.pre_record_state
                         _redraw_current_state()
 

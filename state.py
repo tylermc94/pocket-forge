@@ -21,6 +21,9 @@ class AppState:
     POWER_CONFIRM         = "power_confirm"
     RECORDING             = "recording"
     TRANSCRIBING          = "transcribing"
+    SENDING               = "sending"
+    PLAYING               = "playing"
+    RESPONSE              = "response"
 
 
 # Canvas
@@ -100,6 +103,15 @@ whisper_cpp_model    = None   # Path to ggml-tiny.bin model
 hat_button_held      = False
 hat_button_press_time = 0.0
 pre_record_state     = None
+
+# Forge API response state
+response_scroll_offset   = 0
+response_auto_scrolling  = False
+response_content_height  = 0
+response_last_auto_scroll = 0.0
+response_scroll_done_time = 0.0
+response_transcript      = ""
+response_text            = ""
 
 # Debug mode
 debug = False

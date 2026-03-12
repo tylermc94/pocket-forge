@@ -318,6 +318,120 @@ def draw_stt_unavailable_screen():
     display_image()
 
 
+def draw_sending_screen():
+    """Show 'Sending...' while the Forge API request is in flight."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "Sending...", font=FONT_TITLE, fill=(255, 255, 255))
+    # Simple dot indicator
+    for i, x in enumerate((100, 120, 140)):
+        state.draw.ellipse((x - 4, 158, x + 4, 166), fill=(80, 80, 80) if i else (200, 200, 200))
+    display_image()
+
+
+def draw_forge_unavailable_screen():
+    """Show 'Forge unavailable' on network/API error."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 120), "Forge unavailable", font=FONT_TITLE, fill=(255, 80, 80))
+    display_image()
+
+
+def draw_forge_not_configured_screen():
+    """Show 'Forge not configured' when forge_api_key is missing."""
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+    state.draw.text((MARGIN_LEFT, 100), "Forge not", font=FONT_TITLE, fill=(255, 150, 0))
+    state.draw.text((MARGIN_LEFT, 128), "configured", font=FONT_TITLE, fill=(255, 150, 0))
+    state.draw.text((MARGIN_LEFT, 165), "Set forge_api_key", font=FONT_SMALL, fill=(130, 130, 130))
+    state.draw.text((MARGIN_LEFT, 182), "in settings.json", font=FONT_SMALL, fill=(130, 130, 130))
+    display_image()
+
+
+def draw_response_screen(transcript, response, scroll_offset=0):
+    """Show transcript and Forge response with optional scroll.
+
+    Sets state.response_content_height as a side-effect so the caller can
+    determine whether scrolling is needed.
+    """
+    state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
+
+    CONTENT_X       = MARGIN_LEFT
+    CONTENT_WIDTH   = 240 - 2 * MARGIN_LEFT   # 210 px
+    MUTED           = (0x73, 0x73, 0x73)
+    SMALL_LINE_H    = 17
+    BODY_LINE_H     = 22
+
+    # Word-wrap transcript in FONT_SMALL
+    t_words = ("You: " + (transcript or "(empty)")).split()
+    t_lines, t_cur = [], ""
+    for word in t_words:
+        test = f"{t_cur} {word}".strip()
+        if FONT_SMALL.getlength(test) <= CONTENT_WIDTH:
+            t_cur = test
+        else:
+            if t_cur:
+                t_lines.append(t_cur)
+            t_cur = word
+    if t_cur:
+        t_lines.append(t_cur)
+    if not t_lines:
+        t_lines = ["You: (empty)"]
+
+    # Word-wrap response in FONT_BODY
+    r_words = (response or "(no response)").split()
+    r_lines, r_cur = [], ""
+    for word in r_words:
+        test = f"{r_cur} {word}".strip()
+        if FONT_BODY.getlength(test) <= CONTENT_WIDTH:
+            r_cur = test
+        else:
+            if r_cur:
+                r_lines.append(r_cur)
+            r_cur = word
+    if r_cur:
+        r_lines.append(r_cur)
+    if not r_lines:
+        r_lines = ["(no response)"]
+
+    # Content layout — absolute y positions from top of content
+    t_start_y  = 10
+    divider_y  = t_start_y + len(t_lines) * SMALL_LINE_H + 5
+    r_start_y  = divider_y + 8
+    content_h  = r_start_y + len(r_lines) * BODY_LINE_H + 10
+
+    state.response_content_height = content_h
+    scrollable = content_h > 280
+
+    def sy(y_abs):
+        return y_abs - scroll_offset
+
+    # Transcript
+    for i, line in enumerate(t_lines):
+        ys = sy(t_start_y + i * SMALL_LINE_H)
+        if -SMALL_LINE_H < ys < 280:
+            state.draw.text((CONTENT_X, ys), line, font=FONT_SMALL, fill=MUTED)
+
+    # Divider
+    yd = sy(divider_y)
+    if -2 < yd < 280:
+        state.draw.line((CONTENT_X, yd, 225, yd), fill=(60, 60, 60), width=1)
+
+    # Response lines
+    for i, line in enumerate(r_lines):
+        ys = sy(r_start_y + i * BODY_LINE_H)
+        if -BODY_LINE_H < ys < 280:
+            state.draw.text((CONTENT_X, ys), line, font=FONT_BODY, fill=(255, 255, 255))
+
+    # Scrollbar
+    if scrollable:
+        max_scroll  = content_h - 280
+        sb_x        = 236
+        bar_h       = max(20, int(280 * 280 // content_h))
+        bar_y       = int(scroll_offset / max_scroll * (280 - bar_h)) if max_scroll > 0 else 0
+        state.draw.rectangle((sb_x, 0, sb_x + 3, 280), fill=(40, 40, 40))
+        state.draw.rectangle((sb_x, bar_y, sb_x + 3, bar_y + bar_h), fill=(120, 120, 120))
+
+    display_image()
+
+
 def draw_about_screen():
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
     state.draw.text((MARGIN_LEFT, MARGIN_TOP), "About", font=FONT_TITLE, fill=(255, 200, 0))

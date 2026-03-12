@@ -46,7 +46,8 @@ def _do_wake():
 def _on_hat_button_press():
     """HAT button pressed — start recording (hold to record)."""
     if state.sleeping:
-        _do_wake()
+        if time.time() - state.sleep_enter_time > 1.5:
+            _do_wake()
         return
 
     if not state.screen_on:
@@ -166,6 +167,17 @@ try:
     button_was_down = False
 
     while True:
+        # Skip trackball I2C read while sleeping to avoid bus conflict with
+        # board.set_rgb(). HAT button callback handles wake from sleep instead.
+        if state.sleeping:
+            now = time.time()
+            if now - state.sleep_led_last_update >= 0.05:
+                state.sleep_led_last_update = now
+                v = int(20 + 20 * math.sin(now * math.pi / 2))
+                hardware.set_whisplay_led(v, v, v)
+            time.sleep(0.008)
+            continue
+
         if hardware.trackball_available:
             try:
                 up, down, left, right, switch, _ = hardware.trackball.read()
@@ -177,20 +189,6 @@ try:
                 time.sleep(0.05)  # Brief backoff, let I2C bus recover
 
             any_input = bool(switch or up or down or left or right)
-
-            if state.sleeping:
-                if any_input and time.time() - state.sleep_enter_time > 1.5:
-                    _do_wake()
-                    button_was_down = False
-                else:
-                    # Slow dim-white breathing pulse while sleeping
-                    now = time.time()
-                    if now - state.sleep_led_last_update >= 0.05:
-                        state.sleep_led_last_update = now
-                        v = int(20 + 20 * math.sin(now * math.pi / 2))
-                        hardware.set_whisplay_led(v, v, v)
-                time.sleep(0.008)
-                continue
 
             if not state.screen_on:
                 # Screen is off — wake on any input, consume all of it

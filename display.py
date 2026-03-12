@@ -43,28 +43,31 @@ def draw_main_screen():
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
 
     now      = datetime.now()
-    time_str = now.strftime("%I:%M %p")
-    date_str = now.strftime("%b %d, %Y")
+    time_str = now.strftime("%H:%M")
+    date_str = now.strftime("%a %d")
 
+    # Top-left: time and date stacked
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP),      time_str, font=FONT_SMALL, fill=(255, 255, 255))
+    state.draw.text((MARGIN_LEFT, MARGIN_TOP + 18), date_str, font=FONT_SMALL, fill=(200, 200, 200))
+
+    # Top-right: battery percentage only, right-aligned
     battery = state.get_battery_level()
     if battery is not None:
-        battery_str   = f"Battery: {battery}%"
+        battery_str   = f"{battery}%"
         battery_color = (0, 255, 0) if battery > 50 else (255, 255, 0) if battery > 20 else (255, 0, 0)
     else:
-        battery_str   = "Battery: --"
+        battery_str   = "--%"
         battery_color = (100, 100, 100)
-
-    state.draw.text((MARGIN_LEFT, MARGIN_TOP), "READY",      font=FONT_TITLE, fill=(0, 255, 0))
-    state.draw.text((MARGIN_LEFT, 50),         time_str,     font=FONT_BODY,  fill=(255, 255, 255))
-    state.draw.text((MARGIN_LEFT, 75),         date_str,     font=FONT_BODY,  fill=(200, 200, 200))
-    state.draw.text((MARGIN_LEFT, MARGIN_BOTTOM), battery_str, font=FONT_SMALL, fill=battery_color)
-
-    hint = "Click for menu" if hardware.trackball_available else "No trackball"
-    hint_color = (100, 100, 100) if hardware.trackball_available else (150, 50, 50)
-    state.draw.text((MARGIN_LEFT, 230), hint, font=FONT_SMALL, fill=hint_color)
+    batt_x = int(240 - MARGIN_LEFT - FONT_SMALL.getlength(battery_str))
+    state.draw.text((batt_x, MARGIN_TOP), battery_str, font=FONT_SMALL, fill=battery_color)
 
     if state.debug:
-        state.draw.text((205, MARGIN_TOP), "DBG", font=FONT_SMALL, fill=(255, 80, 0))
+        state.draw.text((205, MARGIN_TOP + 18), "DBG", font=FONT_SMALL, fill=(255, 80, 0))
+
+    # Fire animation block: 120x150px at (60, 130)
+    if state.flame is not None:
+        fire_img = state.flame.render()
+        state.img.paste(fire_img, (60, 130))
 
     display_image()
 

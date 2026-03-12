@@ -318,13 +318,23 @@ def draw_stt_unavailable_screen():
     display_image()
 
 
-def draw_sending_screen():
-    """Show 'Sending...' while the Forge API request is in flight."""
+def draw_sending_screen(frame=0):
+    """Show 'Sending...' with an animated three-dot indicator.
+
+    frame: 0-2, determines which dot is currently active (large, bright).
+    """
     state.draw.rectangle((0, 0, 240, 280), fill=(0, 0, 0))
-    state.draw.text((MARGIN_LEFT, 120), "Sending...", font=FONT_TITLE, fill=(255, 255, 255))
-    # Simple dot indicator
-    for i, x in enumerate((100, 120, 140)):
-        state.draw.ellipse((x - 4, 158, x + 4, 166), fill=(80, 80, 80) if i else (200, 200, 200))
+    state.draw.text((MARGIN_LEFT, 108), "Sending...", font=FONT_TITLE, fill=(255, 255, 255))
+    # Three dots centered horizontally: x = 80, 120, 160
+    DOT_Y       = 165
+    ACTIVE_R    = 12
+    INACTIVE_R  = 6
+    ACTIVE_FILL = (255, 255, 255)
+    MUTED_FILL  = (0x73, 0x73, 0x73)
+    for i, x in enumerate((80, 120, 160)):
+        r    = ACTIVE_R    if i == frame else INACTIVE_R
+        fill = ACTIVE_FILL if i == frame else MUTED_FILL
+        state.draw.ellipse((x - r, DOT_Y - r, x + r, DOT_Y + r), fill=fill)
     display_image()
 
 
@@ -356,15 +366,21 @@ def draw_response_screen(transcript, response, scroll_offset=0):
     CONTENT_X       = MARGIN_LEFT
     CONTENT_WIDTH   = 240 - 2 * MARGIN_LEFT   # 210 px
     MUTED           = (0x73, 0x73, 0x73)
-    SMALL_LINE_H    = 17
+    WHITE           = (0xe5, 0xe5, 0xe5)
     BODY_LINE_H     = 22
 
-    # Word-wrap transcript in FONT_SMALL
-    t_words = ("You: " + (transcript or "(empty)")).split()
+    # "You: " prefix rendered in FONT_SMALL/muted; transcript text in FONT_BODY/white.
+    # First line is shortened to leave room for the prefix.
+    PREFIX    = "You: "
+    prefix_w  = int(FONT_SMALL.getlength(PREFIX)) + 2   # +2px gap
+
+    # Word-wrap transcript in FONT_BODY; first line gets less width due to prefix
+    t_words = (transcript or "(empty)").split()
     t_lines, t_cur = [], ""
     for word in t_words:
-        test = f"{t_cur} {word}".strip()
-        if FONT_SMALL.getlength(test) <= CONTENT_WIDTH:
+        test  = f"{t_cur} {word}".strip()
+        avail = (CONTENT_WIDTH - prefix_w) if not t_lines else CONTENT_WIDTH
+        if FONT_BODY.getlength(test) <= avail:
             t_cur = test
         else:
             if t_cur:
@@ -373,7 +389,7 @@ def draw_response_screen(transcript, response, scroll_offset=0):
     if t_cur:
         t_lines.append(t_cur)
     if not t_lines:
-        t_lines = ["You: (empty)"]
+        t_lines = ["(empty)"]
 
     # Word-wrap response in FONT_BODY
     r_words = (response or "(no response)").split()
@@ -393,7 +409,7 @@ def draw_response_screen(transcript, response, scroll_offset=0):
 
     # Content layout — absolute y positions from top of content
     t_start_y  = 10
-    divider_y  = t_start_y + len(t_lines) * SMALL_LINE_H + 5
+    divider_y  = t_start_y + len(t_lines) * BODY_LINE_H + 5
     r_start_y  = divider_y + 8
     content_h  = r_start_y + len(r_lines) * BODY_LINE_H + 10
 
@@ -403,11 +419,15 @@ def draw_response_screen(transcript, response, scroll_offset=0):
     def sy(y_abs):
         return y_abs - scroll_offset
 
-    # Transcript
+    # Transcript — "You: " prefix inline with first line, continuation lines indented to 0
     for i, line in enumerate(t_lines):
-        ys = sy(t_start_y + i * SMALL_LINE_H)
-        if -SMALL_LINE_H < ys < 280:
-            state.draw.text((CONTENT_X, ys), line, font=FONT_SMALL, fill=MUTED)
+        ys = sy(t_start_y + i * BODY_LINE_H)
+        if -BODY_LINE_H < ys < 280:
+            if i == 0:
+                state.draw.text((CONTENT_X, ys), PREFIX, font=FONT_SMALL, fill=MUTED)
+                state.draw.text((CONTENT_X + prefix_w, ys), line, font=FONT_BODY, fill=WHITE)
+            else:
+                state.draw.text((CONTENT_X, ys), line, font=FONT_BODY, fill=WHITE)
 
     # Divider
     yd = sy(divider_y)

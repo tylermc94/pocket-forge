@@ -49,7 +49,7 @@ current_menu_items = main_menu_items
 last_click_time       = 0
 click_start_time      = 0
 movement_during_click = 0
-MOVEMENT_THRESHOLD    = 3
+MOVEMENT_THRESHOLD    = 5
 SCROLL_SENSITIVITY    = 5
 
 # Screen state
@@ -103,6 +103,10 @@ whisper_cpp_model    = None   # Path to ggml-tiny.bin model
 hat_button_held      = False
 hat_button_press_time = 0.0
 pre_record_state     = None
+
+# Sending animation state
+sending_dot_frame      = 0
+sending_last_frame_time = 0.0
 
 # Forge API response state
 response_scroll_offset   = 0

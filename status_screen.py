@@ -236,9 +236,9 @@ try:
 
                         elif (click_duration < 0.5 and
                                 state.movement_during_click < state.MOVEMENT_THRESHOLD and
-                                time.time() - state.last_click_time > 0.3):
+                                time.time() - state.last_click_time > 0.15):
 
-                            logger.debug_log(f"Valid click registered, state={state.current_state}")
+                            logger.debug_log(f"Click accepted: dur={click_duration:.3f}s mov={state.movement_during_click} state={state.current_state}")
                             state.last_click_time = time.time()
 
                             if state.current_state == state.AppState.RESPONSE:
@@ -270,7 +270,15 @@ try:
                             else:
                                 menus.handle_menu_selection()
                         else:
-                            logger.debug_log("Click rejected")
+                            _reason = []
+                            if click_duration >= 0.5:
+                                _reason.append(f"dur={click_duration:.3f}s>=0.5")
+                            if state.movement_during_click >= state.MOVEMENT_THRESHOLD:
+                                _reason.append(f"mov={state.movement_during_click}>={state.MOVEMENT_THRESHOLD}")
+                            _since = time.time() - state.last_click_time
+                            if _since <= 0.15:
+                                _reason.append(f"debounce={_since:.3f}s<=0.15")
+                            logger.debug_log(f"Click rejected: {', '.join(_reason)}")
 
                 if button_was_down:
                     state.movement_during_click += abs(up) + abs(down) + abs(left) + abs(right)
@@ -457,8 +465,10 @@ try:
                         _redraw_current_state()
                     else:
                         # Send to Forge API
+                        state.sending_dot_frame       = 0
+                        state.sending_last_frame_time = time.time()
                         state.current_state = state.AppState.SENDING
-                        display.draw_sending_screen()
+                        display.draw_sending_screen(0)
 
                         t_start = time.time()
                         result  = forge_api.query_forge(audio_bytes)
@@ -520,6 +530,14 @@ try:
                             state.response_scroll_done_time = 0.0
 
                 _recording_frames.clear()
+
+        # === SENDING state: advance animated dot frame ===
+        if state.current_state == state.AppState.SENDING:
+            now = time.time()
+            if now - state.sending_last_frame_time > 0.4:
+                state.sending_dot_frame       = (state.sending_dot_frame + 1) % 3
+                state.sending_last_frame_time = now
+                display.draw_sending_screen(state.sending_dot_frame)
 
         # === RESPONSE state: HAT-button exit, auto-scroll, auto-exit ===
         if state.current_state == state.AppState.RESPONSE:

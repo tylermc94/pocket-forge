@@ -122,6 +122,9 @@ response_text            = ""
 # Debug mode
 debug = False
 
+# Fire animation (ForgeFlame instance, set by hardware.py after board init)
+flame = None
+
 # OTA / About screen state
 ota_status         = None   # None | "up_to_date" | "update_available"
 ota_status_changed = False  # Set True by background thread; cleared by main loop

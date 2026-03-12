@@ -68,6 +68,10 @@ else:
 
 print("Hardware initialized")
 
+# Fire animation — instantiate after board init
+from fire import ForgeFlame
+state.flame = ForgeFlame()
+
 
 # board.set_rgb() can trigger a spurious button-press callback on the HAT.
 # Record when it was last called so the callback can suppress false wakes.

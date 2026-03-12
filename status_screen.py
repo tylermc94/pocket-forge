@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import base64
+import io
 import os
 import time
 import wave
@@ -16,6 +18,8 @@ import drawing
 import snake
 import logger
 import queries
+import settings
+import forge_api
 
 try:
     import sounddevice as sd
@@ -47,7 +51,8 @@ def _on_hat_button_press():
         state.last_activity_time = time.time()
         hardware.board.set_backlight(state.current_brightness)
 
-    if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
+    if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING,
+                                state.AppState.SENDING, state.AppState.PLAYING):
         return
 
     state.hat_button_held = True
@@ -95,6 +100,47 @@ def _redraw_current_state():
     elif s == state.AppState.SCREEN_TIMEOUT:
         pct = int((state.screen_timeout - 15) / (300 - 15) * 100)
         display.draw_slider_screen("Screen Timeout", pct, "", f"{state.screen_timeout}s")
+
+
+def _play_forge_audio(audio_b64):
+    """Decode base64 WAV and play through WM8960 output (blocking)."""
+    if sd is None:
+        logger.debug_log("play_forge_audio: sounddevice not available")
+        return
+    try:
+        raw = base64.b64decode(audio_b64)
+        buf = io.BytesIO(raw)
+        with wave.open(buf, 'rb') as wf:
+            nchannels = wf.getnchannels()
+            framerate = wf.getframerate()
+            sampwidth = wf.getsampwidth()
+            frames    = wf.readframes(wf.getnframes())
+
+        if sampwidth == 2:
+            audio_data = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        else:
+            audio_data = np.frombuffer(frames, dtype=np.float32)
+
+        if nchannels > 1:
+            audio_data = audio_data.reshape(-1, nchannels)
+
+        # Prefer WM8960 output device; fall back to default
+        output_device = None
+        try:
+            for i, dev in enumerate(sd.query_devices()):
+                if 'wm8960' in dev['name'].lower() and dev['max_output_channels'] > 0:
+                    output_device = i
+                    break
+        except Exception:
+            pass
+        if output_device is None:
+            logger.debug_log("play_forge_audio: WM8960 not found, using default output")
+
+        sd.play(audio_data, samplerate=framerate, device=output_device)
+        sd.wait()
+        logger.debug_log("play_forge_audio: playback complete")
+    except Exception as e:
+        logger.debug_log(f"play_forge_audio: error — {e}")
 
 
 try:
@@ -154,8 +200,9 @@ try:
                 if any_input:
                     state.last_activity_time = time.time()
 
-                # Block all trackball input during recording/transcribing
-                if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING):
+                # Block all trackball input during recording/transcribing/sending/playing
+                if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING,
+                                           state.AppState.SENDING, state.AppState.PLAYING):
                     up = down = left = right = switch = 0
 
                 # Button tracking — switch is an edge event (1 on press AND release),
@@ -194,7 +241,11 @@ try:
                             logger.debug_log(f"Valid click registered, state={state.current_state}")
                             state.last_click_time = time.time()
 
-                            if state.current_state == state.AppState.DRAWING:
+                            if state.current_state == state.AppState.RESPONSE:
+                                state.current_state = state.pre_record_state
+                                _redraw_current_state()
+
+                            elif state.current_state == state.AppState.DRAWING:
                                 drawing.toggle_mode()
                                 state.drawing_dirty = True
 
@@ -291,13 +342,30 @@ try:
                                                                f"{state.screen_timeout}s")
                             state.scroll_accumulator = 0
 
+                    elif state.current_state == state.AppState.RESPONSE:
+                        state.scroll_accumulator += net_movement
+                        if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
+                            delta     = 10 if state.scroll_accumulator > 0 else -10
+                            max_scroll = max(0, state.response_content_height - 280)
+                            new_off   = max(0, min(max_scroll, state.response_scroll_offset + delta))
+                            if new_off != state.response_scroll_offset:
+                                state.response_scroll_offset  = new_off
+                                state.response_auto_scrolling = False
+                                display.draw_response_screen(
+                                    state.response_transcript, state.response_text,
+                                    state.response_scroll_offset)
+                            state.scroll_accumulator = 0
+
                     elif state.current_state not in (state.AppState.MAIN,
                                                       state.AppState.ABOUT,
                                                       state.AppState.DRAWING,
                                                       state.AppState.SNAKE,
                                                       state.AppState.POWER_CONFIRM,
                                                       state.AppState.RECORDING,
-                                                      state.AppState.TRANSCRIBING):
+                                                      state.AppState.TRANSCRIBING,
+                                                      state.AppState.SENDING,
+                                                      state.AppState.PLAYING,
+                                                      state.AppState.RESPONSE):
                         state.scroll_accumulator += net_movement
                         if abs(state.scroll_accumulator) >= state.SCROLL_SENSITIVITY:
                             item_count = len(state.current_menu_items)
@@ -315,8 +383,11 @@ try:
         # === Voice recording: detect button press → start recording ===
         if (state.hat_button_held and state.hat_button_press_time > 0
                 and state.current_state not in (state.AppState.RECORDING,
-                                                state.AppState.TRANSCRIBING)):
-            if state.whisper_model is None or sd is None:
+                                                state.AppState.TRANSCRIBING,
+                                                state.AppState.SENDING,
+                                                state.AppState.PLAYING,
+                                                state.AppState.RESPONSE)):
+            if sd is None:
                 display.draw_stt_unavailable_screen()
                 time.sleep(2)
                 state.hat_button_press_time = 0  # Prevent re-trigger
@@ -355,62 +426,129 @@ try:
                     state.current_state = state.pre_record_state
                     _redraw_current_state()
                 else:
-                    # Transcribe
-                    state.current_state = state.AppState.TRANSCRIBING
-                    display.draw_transcribing_screen()
-
+                    # Build WAV bytes in-memory (no disk write)
                     audio = (np.concatenate(_recording_frames, axis=0).flatten()
                              if _recording_frames
                              else np.array([], dtype=np.float32))
-
-                    # Write temp WAV for whisper.cpp
-                    wav_path = "/tmp/pf_recording.wav"
                     audio_int16 = (audio * 32767).astype(np.int16)
-                    with wave.open(wav_path, 'wb') as wf:
+                    wav_buf = io.BytesIO()
+                    with wave.open(wav_buf, 'wb') as wf:
                         wf.setnchannels(1)
                         wf.setsampwidth(2)
                         wf.setframerate(16000)
                         wf.writeframes(audio_int16.tobytes())
+                    audio_bytes = wav_buf.getvalue()
 
-                    t_start = time.time()
-                    _wcmd = [state.whisper_cpp_bin,
-                             '-m', state.whisper_cpp_model,
-                             '-f', wav_path,
-                             '--no-timestamps',
-                             '-t', '4']
-                    # English-only model doesn't need -l flag; set it for multilingual
-                    if not state.whisper_model.endswith('.en'):
-                        _wcmd += ['-l', 'en']
-                    wresult = subprocess.run(
-                        _wcmd, capture_output=True, text=True, timeout=120)
-                    t_elapsed = time.time() - t_start
-                    text = wresult.stdout.strip()
+                    # Check Forge is configured before sending
+                    _sdata = settings.load_settings()
+                    if not _sdata.get("forge_api_key", ""):
+                        display.draw_forge_not_configured_screen()
+                        time.sleep(2)
+                        queries.log_query({
+                            "timestamp":              datetime.now().isoformat(timespec='seconds'),
+                            "transcript":             None,
+                            "local_transcript":       None,
+                            "forge_response":         None,
+                            "forge_response_time":    None,
+                            "duration_seconds":       round(duration, 1),
+                            "success":                False,
+                        })
+                        state.current_state = state.pre_record_state
+                        _redraw_current_state()
+                    else:
+                        # Send to Forge API
+                        state.current_state = state.AppState.SENDING
+                        display.draw_sending_screen()
 
-                    try:
-                        os.remove(wav_path)
-                    except OSError:
-                        pass
+                        t_start = time.time()
+                        result  = forge_api.query_forge(audio_bytes)
+                        t_elapsed = time.time() - t_start
 
-                    # Benchmark output (always printed)
-                    print(f"Transcribed {duration:.1f}s audio in {t_elapsed:.1f}s | Result: {text}")
-                    logger.debug_log(f"Transcription time: {t_elapsed:.1f}s, audio duration: {duration:.1f}s")
+                        if result is None:
+                            # Network / API error
+                            logger.debug_log(f"Forge query failed after {t_elapsed:.1f}s")
+                            print(f"Forge unavailable after {t_elapsed:.1f}s")
+                            queries.log_query({
+                                "timestamp":           datetime.now().isoformat(timespec='seconds'),
+                                "transcript":          None,
+                                "local_transcript":    None,
+                                "forge_response":      None,
+                                "forge_response_time": round(t_elapsed, 1),
+                                "duration_seconds":    round(duration, 1),
+                                "success":             False,
+                            })
+                            display.draw_forge_unavailable_screen()
+                            time.sleep(2)
+                            state.current_state = state.pre_record_state
+                            _redraw_current_state()
+                        else:
+                            # Success
+                            transcript    = result.get("transcript", "")
+                            response_text = result.get("response", "")
+                            audio_b64     = result.get("audio", "")
+                            resp_time     = result.get("_response_time", round(t_elapsed, 2))
 
-                    queries.log_query({
-                        "timestamp": datetime.now().isoformat(timespec='seconds'),
-                        "transcript": text,
-                        "duration_seconds": round(duration, 1),
-                        "transcription_time_seconds": round(t_elapsed, 1),
-                        "whisper_model": state.whisper_model,
-                        "audio_file": None,
-                    })
+                            print(f"Forge: {t_elapsed:.1f}s | {transcript!r}")
+                            logger.debug_log(f"Forge response: {response_text!r}")
 
-                    display.draw_transcript_screen(text)
-                    time.sleep(3)
+                            queries.log_query({
+                                "timestamp":           datetime.now().isoformat(timespec='seconds'),
+                                "transcript":          transcript,
+                                "local_transcript":    None,
+                                "forge_response":      response_text,
+                                "forge_response_time": resp_time,
+                                "duration_seconds":    round(duration, 1),
+                                "success":             True,
+                            })
 
-                    state.current_state = state.pre_record_state
-                    _redraw_current_state()
+                            # Show response screen and play audio
+                            state.response_transcript   = transcript
+                            state.response_text         = response_text
+                            state.response_scroll_offset = 0
+                            state.response_auto_scrolling = False
+                            state.response_scroll_done_time = 0.0
+                            state.current_state = state.AppState.PLAYING
+                            display.draw_response_screen(transcript, response_text, 0)
+
+                            if audio_b64:
+                                _play_forge_audio(audio_b64)
+
+                            # Playback done — transition to RESPONSE with auto-scroll
+                            state.current_state           = state.AppState.RESPONSE
+                            state.response_auto_scrolling = True
+                            state.response_last_auto_scroll = time.time()
+                            state.response_scroll_done_time = 0.0
 
                 _recording_frames.clear()
+
+        # === RESPONSE state: HAT-button exit, auto-scroll, auto-exit ===
+        if state.current_state == state.AppState.RESPONSE:
+            now = time.time()
+
+            # HAT button exits immediately
+            if state.hat_button_held:
+                state.hat_button_held       = False
+                state.hat_button_press_time = 0
+                state.current_state = state.pre_record_state
+                _redraw_current_state()
+
+            elif state.response_auto_scrolling:
+                max_scroll = max(0, state.response_content_height - 280)
+                if state.response_scroll_offset < max_scroll:
+                    # Advance 1px every 50 ms
+                    if now - state.response_last_auto_scroll >= 0.05:
+                        state.response_scroll_offset    += 1
+                        state.response_last_auto_scroll  = now
+                        display.draw_response_screen(
+                            state.response_transcript, state.response_text,
+                            state.response_scroll_offset)
+                else:
+                    # Reached bottom — start 2 s auto-exit timer
+                    if state.response_scroll_done_time == 0.0:
+                        state.response_scroll_done_time = now
+                    elif now - state.response_scroll_done_time >= 2.0:
+                        state.current_state = state.pre_record_state
+                        _redraw_current_state()
 
         # Main screen clock update — only redraws when the second changes and screen is on
         if state.current_state == state.AppState.MAIN and state.screen_on:
@@ -437,12 +575,15 @@ try:
             state.ota_status_changed = False
             display.draw_about_status()
 
-        # Screen timeout check — disabled in Party Mode, Drawing, Snake, and Recording
+        # Screen timeout check — disabled in Party Mode, Drawing, Snake, Recording, and Forge flow
         if state.screen_on and state.current_state not in (state.AppState.PARTY_MODE,
                                                              state.AppState.DRAWING,
                                                              state.AppState.SNAKE,
                                                              state.AppState.RECORDING,
-                                                             state.AppState.TRANSCRIBING):
+                                                             state.AppState.TRANSCRIBING,
+                                                             state.AppState.SENDING,
+                                                             state.AppState.PLAYING,
+                                                             state.AppState.RESPONSE):
             if time.time() - state.last_activity_time > state.screen_timeout:
                 state.screen_on = False
                 hardware.board.set_backlight(0)

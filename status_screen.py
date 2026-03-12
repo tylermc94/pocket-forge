@@ -488,7 +488,6 @@ try:
                     else:
                         # Kick off Forge API call in a daemon thread so the main
                         # loop stays alive for the dot animation.
-                        global _forge_future, _forge_recording_duration
                         _forge_recording_duration = duration
                         _forge_outcome.clear()
                         state.sending_dot_frame       = 0

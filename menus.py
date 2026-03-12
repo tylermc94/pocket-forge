@@ -146,8 +146,10 @@ def handle_menu_selection():
             logger.debug_log("Sleep: WiFi disabled, stopping battery thread")
             hardware.stop_battery_thread()
             state.sleeping         = True
+            state.deep_sleep       = True
             state.screen_on        = False
             state.sleep_enter_time = time.time()
+            state.sleep_led_last_update = 0.0
         elif selected == "Reboot":
             state.power_confirm_action = "reboot"
             state.menu_index = 1  # default to "No"

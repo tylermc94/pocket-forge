@@ -69,10 +69,17 @@ else:
 print("Hardware initialized")
 
 
+# board.set_rgb() can trigger a spurious button-press callback on the HAT.
+# Record when it was last called so the callback can suppress false wakes.
+_last_rgb_call = 0.0
+
+
 def set_whisplay_led(r, g, b):
     """Set the Whisplay HAT status LED."""
+    global _last_rgb_call
     try:
         board.set_rgb(r, g, b)
+        _last_rgb_call = time.time()
     except Exception:
         pass
 

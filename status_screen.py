@@ -31,13 +31,17 @@ except ImportError:
 
 
 def _do_wake():
-    logger.debug_log("Waking: enabling WiFi, restarting battery thread")
-    subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'auto'], capture_output=True)
-    hardware.start_battery_thread()
-    state.sleeping         = False
-    state.screen_on        = True
+    if state.deep_sleep:
+        logger.debug_log("Waking from deep sleep: enabling WiFi, restarting battery thread")
+        subprocess.run(['sudo', 'iwconfig', 'wlan0', 'txpower', 'auto'], capture_output=True)
+        hardware.start_battery_thread()
+    else:
+        logger.debug_log("Waking from screen timeout sleep")
+    state.sleeping           = False
+    state.deep_sleep         = False
+    state.screen_on          = True
     state.last_activity_time = time.time()
-    state.current_state    = state.AppState.MAIN
+    state.current_state      = state.AppState.MAIN
     hardware.set_whisplay_led(0, 0, 0)
     hardware.board.set_backlight(state.current_brightness)
     display.draw_main_screen()
@@ -46,7 +50,10 @@ def _do_wake():
 def _on_hat_button_press():
     """HAT button pressed — start recording (hold to record)."""
     if state.sleeping:
-        if time.time() - state.sleep_enter_time > 1.5:
+        now = time.time()
+        # board.set_rgb() can fire a spurious button callback; suppress if
+        # called within 250ms of the last LED pulse update.
+        if now - state.sleep_enter_time > 1.5 and now - hardware._last_rgb_call > 0.25:
             _do_wake()
         return
 
@@ -167,14 +174,30 @@ try:
     button_was_down = False
 
     while True:
-        # Skip trackball I2C read while sleeping to avoid bus conflict with
-        # board.set_rgb(). HAT button callback handles wake from sleep instead.
         if state.sleeping:
             now = time.time()
-            if now - state.sleep_led_last_update >= 0.05:
+            time_since_pulse = now - state.sleep_led_last_update
+
+            # Read trackball in the clean window (>250ms after last set_rgb,
+            # before the next pulse) so the I2C bus has settled.
+            if hardware.trackball_available and 0.25 < time_since_pulse < 0.45:
+                try:
+                    up, down, left, right, switch, _ = hardware.trackball.read()
+                    any_tb = bool(switch or up or down or left or right)
+                    if any_tb and now - state.sleep_enter_time > 1.5:
+                        _do_wake()
+                        button_was_down = False
+                        time.sleep(0.008)
+                        continue
+                except Exception:
+                    pass
+
+            # Pulse LED every 500ms — leaves long clean gaps for trackball reads
+            if time_since_pulse >= 0.5:
                 state.sleep_led_last_update = now
                 v = int(20 + 20 * math.sin(now * math.pi / 2))
                 hardware.set_whisplay_led(v, v, v)
+
             time.sleep(0.008)
             continue
 
@@ -660,15 +683,8 @@ try:
             state.ota_status_changed = False
             display.draw_about_status()
 
-        # LED breathing pulse when screen is off due to timeout (but not full sleep)
-        if not state.screen_on and not state.sleeping:
-            now = time.time()
-            if now - state.sleep_led_last_update >= 0.05:
-                state.sleep_led_last_update = now
-                v = int(20 + 20 * math.sin(now * math.pi / 2))
-                hardware.set_whisplay_led(v, v, v)
-
-        # Screen timeout check — disabled in Party Mode, Drawing, Snake, Recording, and Forge flow
+        # Screen timeout — enter sleep mode (LED pulse, trackball/button wake)
+        # Deep WiFi/battery teardown only happens via power-menu Sleep.
         if state.screen_on and state.current_state not in (state.AppState.PARTY_MODE,
                                                              state.AppState.DRAWING,
                                                              state.AppState.SNAKE,
@@ -678,7 +694,11 @@ try:
                                                              state.AppState.PLAYING,
                                                              state.AppState.RESPONSE):
             if time.time() - state.last_activity_time > state.screen_timeout:
-                state.screen_on = False
+                state.screen_on        = False
+                state.sleeping         = True
+                state.deep_sleep       = False
+                state.sleep_enter_time = time.time()
+                state.sleep_led_last_update = 0.0
                 hardware.board.set_backlight(0)
 
         time.sleep(0.008)

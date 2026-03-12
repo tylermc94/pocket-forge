@@ -56,8 +56,10 @@ SCROLL_SENSITIVITY    = 5
 screen_on          = True
 screen_timeout     = 60      # seconds; overwritten by settings on startup
 last_activity_time = time.time()
-sleeping           = False
-sleep_enter_time   = 0.0
+sleeping              = False
+deep_sleep            = False  # True only for power-menu Sleep (WiFi off, battery stopped)
+sleep_enter_time      = 0.0
+sleep_led_last_update = 0.0   # time of last board.set_rgb() pulse call
 
 # Volume / brightness / sensitivity state
 current_volume       = 50

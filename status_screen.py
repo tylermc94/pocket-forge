@@ -54,7 +54,7 @@ def _on_hat_button_press():
         hardware.board.set_backlight(state.current_brightness)
 
     if state.current_state in (state.AppState.RECORDING, state.AppState.TRANSCRIBING,
-                                state.AppState.SENDING, state.AppState.PLAYING):
+                                state.AppState.SENDING):
         return
 
     state.hat_button_held = True
@@ -153,8 +153,7 @@ def _play_forge_audio(audio_b64):
             logger.debug_log("play_forge_audio: WM8960 not found, using default output")
 
         sd.play(audio_data, samplerate=framerate, device=output_device)
-        sd.wait()
-        logger.debug_log("play_forge_audio: playback complete")
+        logger.debug_log("play_forge_audio: playback started")
     except Exception as e:
         logger.debug_log(f"play_forge_audio: error — {e}")
 
@@ -561,12 +560,37 @@ try:
                     state.response_scroll_offset = 0
                     state.response_auto_scrolling   = False
                     state.response_scroll_done_time = 0.0
-                    state.current_state = state.AppState.PLAYING
                     display.draw_response_screen(transcript, response_text, 0)
 
                     if audio_b64:
                         _play_forge_audio(audio_b64)
+                        state.current_state = state.AppState.PLAYING
+                    else:
+                        # No audio — skip straight to RESPONSE
+                        hardware.set_trackball_color(0, 255, 0)
+                        state.current_state             = state.AppState.RESPONSE
+                        state.response_auto_scrolling   = True
+                        state.response_last_auto_scroll = time.time()
+                        state.response_scroll_done_time = 0.0
 
+        # === PLAYING state: interrupt on HAT press, transition to RESPONSE when done ===
+        if state.current_state == state.AppState.PLAYING:
+            if state.hat_button_held:
+                # User pressed record — stop audio and return to status screen
+                if sd is not None:
+                    sd.stop()
+                state.hat_button_held       = False
+                state.hat_button_press_time = 0
+                hardware.set_trackball_color(0, 0, 0)
+                state.current_state = state.pre_record_state
+                _redraw_current_state()
+            else:
+                # Check if playback has finished
+                try:
+                    still_playing = sd.get_stream().active
+                except Exception:
+                    still_playing = False
+                if not still_playing:
                     hardware.set_trackball_color(0, 255, 0)
                     state.current_state             = state.AppState.RESPONSE
                     state.response_auto_scrolling   = True
